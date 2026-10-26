@@ -45,5 +45,26 @@ echo "CONFIG_PACKAGE_libuci=y" >> .config
 echo "CONFIG_PACKAGE_fstools=y" >> .config
 
 # 4. 显式启用内核 UBI 块设备支持（mount.ubi 运行的前提）
+
+# ============================================================
+# 强制确认基础系统包（防止被 defconfig 裁剪）
+# ============================================================
+
+# 基础系统组件
+echo "CONFIG_PACKAGE_base-files=y" >> .config
+echo "CONFIG_PACKAGE_busybox=y" >> .config
+echo "CONFIG_PACKAGE_netifd=y" >> .config
+echo "CONFIG_PACKAGE_procd=y" >> .config
+echo "CONFIG_PACKAGE_uci=y" >> .config
+
+# 块设备与文件系统工具
+echo "CONFIG_PACKAGE_block-mount=y" >> .config
+echo "CONFIG_PACKAGE_fstools=y" >> .config
+echo "CONFIG_PACKAGE_ubi-utils=y" >> .config
+
+# 图形界面基础（确保 LuCI 核心完整）
+echo "CONFIG_PACKAGE_luci-base=y" >> .config
+echo "CONFIG_PACKAGE_luci-mod-status=y" >> .config
+echo "CONFIG_PACKAGE_luci-mod-system=y" >> .config
 echo "CONFIG_PACKAGE_kmod-ubiblock=y" >> .config
 echo "CONFIG_PACKAGE_kmod-ubi=y" >> .config
