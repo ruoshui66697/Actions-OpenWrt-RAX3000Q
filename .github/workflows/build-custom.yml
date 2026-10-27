@@ -16,7 +16,7 @@ env:
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
-  DIY_P3_SH: diy-part3.sh  # 👈 新增：用于替换 DTS 的脚本
+  DIY_P3_SH: diy-part3.sh
   UPLOAD_BIN_DIR: true
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
@@ -25,6 +25,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write # 👈 新增：赋予发布 Release 的写权限，解决 EACCES 报错
 
     steps:
     - name: Checkout
@@ -148,10 +150,7 @@ jobs:
     - name: Apply Custom DTS
       run: |
         chmod +x $DIY_P3_SH
-        cd openwrt
         $GITHUB_WORKSPACE/$DIY_P3_SH
-        echo "========== 🔍 检查 DTS 是否替换成功 =========="
-        grep -A 2 "reset-gpios" target/linux/ipq50xx/dts/ipq5000-rax3000q.dts || echo "⚠️ 未找到 reset-gpios，可能替换失败！"
 
     - name: SSH connection to Actions
       uses: owenthereal/action-upterm@v1
