@@ -28,22 +28,6 @@
 # echo "CONFIG_PACKAGE_kmod-ipt-ipopt=y" >> .config
 
 
-# ============================================================
-# 2. 修复 ssdk_sh 缺失，补全底层工具
-# ============================================================
-
-# 强制开启高通 SSDK 包（提供 ssdk_sh 等命令，此源码没有单独的 shell 包）
-sed -i '/CONFIG_PACKAGE_qca-ssdk/d' .config
-sed -i '/CONFIG_PACKAGE_qca-ssdk-nohnat/d' .config
-echo "CONFIG_PACKAGE_qca-ssdk=y" >> .config
-
-# 补全 UBI 工具和内核模块（解决 mount.ubi 相关的潜在依赖）
-sed -i '/CONFIG_PACKAGE_ubi-utils/d' .config
-sed -i '/CONFIG_PACKAGE_kmod-ubi/d' .config
-sed -i '/CONFIG_PACKAGE_kmod-ubiblock/d' .config
-echo "CONFIG_PACKAGE_ubi-utils=y" >> .config
-echo "CONFIG_PACKAGE_kmod-ubi=y" >> .config
-echo "CONFIG_PACKAGE_kmod-ubiblock=y" >> .config
 
 
 # ============================================================
