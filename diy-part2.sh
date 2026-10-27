@@ -11,21 +11,21 @@
 #
 
 # ============================================================
-# 1. 添加 mwan3 多拨/负载均衡 及其依赖
+# 1. 添加 mwan3 多拨/负载均衡 及其依赖 (暂时注释，以后需要再取消)
 # ============================================================
-sed -i '/CONFIG_PACKAGE_luci-app-mwan3/d' .config
-sed -i '/CONFIG_PACKAGE_mwan3/d' .config
-sed -i '/CONFIG_PACKAGE_iptables-mod-conntrack-extra/d' .config
-sed -i '/CONFIG_PACKAGE_iptables-mod-ipopt/d' .config
-sed -i '/CONFIG_PACKAGE_kmod-ipt-conntrack-extra/d' .config
-sed -i '/CONFIG_PACKAGE_kmod-ipt-ipopt/d' .config
+# sed -i '/CONFIG_PACKAGE_luci-app-mwan3/d' .config
+# sed -i '/CONFIG_PACKAGE_mwan3/d' .config
+# sed -i '/CONFIG_PACKAGE_iptables-mod-conntrack-extra/d' .config
+# sed -i '/CONFIG_PACKAGE_iptables-mod-ipopt/d' .config
+# sed -i '/CONFIG_PACKAGE_kmod-ipt-conntrack-extra/d' .config
+# sed -i '/CONFIG_PACKAGE_kmod-ipt-ipopt/d' .config
 
-echo "CONFIG_PACKAGE_luci-app-mwan3=y" >> .config
-echo "CONFIG_PACKAGE_mwan3=y" >> .config
-echo "CONFIG_PACKAGE_iptables-mod-conntrack-extra=y" >> .config
-echo "CONFIG_PACKAGE_iptables-mod-ipopt=y" >> .config
-echo "CONFIG_PACKAGE_kmod-ipt-conntrack-extra=y" >> .config
-echo "CONFIG_PACKAGE_kmod-ipt-ipopt=y" >> .config
+# echo "CONFIG_PACKAGE_luci-app-mwan3=y" >> .config
+# echo "CONFIG_PACKAGE_mwan3=y" >> .config
+# echo "CONFIG_PACKAGE_iptables-mod-conntrack-extra=y" >> .config
+# echo "CONFIG_PACKAGE_iptables-mod-ipopt=y" >> .config
+# echo "CONFIG_PACKAGE_kmod-ipt-conntrack-extra=y" >> .config
+# echo "CONFIG_PACKAGE_kmod-ipt-ipopt=y" >> .config
 
 
 # ============================================================
