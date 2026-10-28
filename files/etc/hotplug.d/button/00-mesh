@@ -1,0 +1,36 @@
+#!/bin/sh
+#
+# Mesh 键切换 WiFi 开关
+# DTS 中 mesh 键映射为 KEY_WPS_BUTTON，gpio-button-hotplug 上报的 BUTTON 可能是 mesh 或 wps
+#
+
+[ "$ACTION" = "pressed" ] || exit 0
+
+case "$BUTTON" in
+    mesh|wps) ;;
+    *) exit 0 ;;
+esac
+
+logger -t mesh-button "mesh/wps button pressed, toggling WiFi"
+
+# 以第一个 wifi-device 的 disabled 状态为基准
+current=$(uci -q get wireless.@wifi-device[0].disabled)
+
+if [ "$current" = "1" ]; then
+    new_state=0
+    msg="WiFi enabled"
+else
+    new_state=1
+    msg="WiFi disabled"
+fi
+
+# 遍历所有 wifi-device，统一切换
+i=0
+while uci -q get wireless.@wifi-device[$i] >/dev/null 2>&1; do
+    uci set wireless.@wifi-device[$i].disabled="$new_state"
+    i=$((i+1))
+done
+
+uci commit wireless
+wifi reload
+logger -t mesh-button "$msg"
