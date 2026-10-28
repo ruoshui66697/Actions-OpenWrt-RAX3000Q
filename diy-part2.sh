@@ -84,3 +84,23 @@ sed -i '/CONFIG_PACKAGE_luci-i18n-natmap/d' .config
 echo "CONFIG_PACKAGE_smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
+
+# ============================================================
+# 6. 添加 CPU 频率调节 (cpufreq) LuCI 界面及中文语言包
+# ============================================================
+# 检查 feed 里是否存在 luci-app-cpufreq，不存在则手动拉取
+if [ ! -d "feeds/luci/applications/luci-app-cpufreq" ]; then
+    echo "luci-app-cpufreq not found in feeds, fetching from immortalwrt/luci..."
+    git clone --depth=1 https://github.com/immortalwrt/luci.git /tmp/luci-cpufreq
+    cp -r /tmp/luci-cpufreq/applications/luci-app-cpufreq feeds/luci/applications/
+    rm -rf /tmp/luci-cpufreq
+fi
+# 清除可能存在的旧配置行
+sed -i '/CONFIG_PACKAGE_luci-app-cpufreq/d' .config
+sed -i '/CONFIG_PACKAGE_luci-i18n-cpufreq/d' .config
+
+# 启用 cpufreq 插件
+echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
+
+# 中文语言包（21.02 分支使用 zh-cn 命名，与你现有 base/firewall 等一致）
+echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
