@@ -101,6 +101,9 @@ sed -i '/CONFIG_PACKAGE_luci-i18n-cpufreq/d' .config
 
 # 启用 cpufreq 插件
 echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
-
+# ============================================================
+# 7. 确保 hotplug 脚本可执行
+# ============================================================
+[ -d "files/etc/hotplug.d/button" ] && chmod +x files/etc/hotplug.d/button/*
 # 中文语言包（21.02 分支使用 zh-cn 命名，与你现有 base/firewall 等一致）
 echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
