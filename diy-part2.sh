@@ -102,17 +102,24 @@ sed -i '/CONFIG_PACKAGE_luci-i18n-cpufreq/d' .config
 # 启用 cpufreq 插件
 echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
 # ============================================================
-# 6. 确保 hotplug 脚本可执行
+#  确保 hotplug 脚本可执行
 # ============================================================
 [ -d "files/etc/hotplug.d/button" ] && chmod +x files/etc/hotplug.d/button/*
 # 中文语言包（21.02 分支使用 zh-cn 命名，与你现有 base/firewall 等一致）
 echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
 
-# =========================7.NSS===================================
+# =========================6.NSS===================================
 # 1. 拉取 NSS 前端核心包 和 概览页状态注入包
 git clone https://github.com/laipeng668/luci-app-nss.git package/luci-app-nss
 git clone https://github.com/laipeng668/luci-app-nss-status.git package/luci-app-nss-status
 
-# 2. 强制让编译系统把这两个包都编进固件里
+# 2. 清理可能存在的旧配置并强制编入固件
+sed -i '/CONFIG_PACKAGE_luci-app-nss/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-nss-status/d' .config
+
 echo "CONFIG_PACKAGE_luci-app-nss=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-nss-status=y" >> .config
+
+# 尝试加入中文包（如果仓库里有的话，没有这行也不会报错，只是没中文）
+echo "CONFIG_PACKAGE_luci-i18n-nss-zh-cn=y" >> .config
+echo "CONFIG_PACKAGE_luci-i18n-nss-status-zh-cn=y" >> .config
