@@ -108,34 +108,33 @@ echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
 # 中文语言包（21.02 分支使用 zh-cn 命名，与你现有 base/firewall 等一致）
 echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
 
-# =========================6.NSS===================================
-# 1. 拉取 NSS 前端核心包 和 概览页状态注入包
-git clone https://github.com/laipeng668/luci-app-nss.git package/luci-app-nss
-git clone https://github.com/laipeng668/luci-app-nss-status.git package/luci-app-nss-status
 
-# 2. 清理可能存在的旧配置并强制编入固件
-sed -i '/CONFIG_PACKAGE_luci-app-nss/d' .config
-sed -i '/CONFIG_PACKAGE_luci-app-nss-status/d' .config
+# =========================6. 定制底层 cpuinfo 脚本（解决 1.2GHz 动态显示）===================
+# 确保目标目录存在
+mkdir -p package/base-files/files/sbin
 
-echo "CONFIG_PACKAGE_luci-app-nss=y" >> .config
-echo "CONFIG_PACKAGE_luci-app-nss-status=y" >> .config
+# 将我们定制好的 cpuinfo 脚本写入固件源码目录
+cat << 'EOF' > package/base-files/files/sbin/cpuinfo
+#!/bin/sh
 
-# 尝试加入中文包（如果仓库里有的话，没有这行也不会报错，只是没中文）
-echo "CONFIG_PACKAGE_luci-i18n-nss-zh-cn=y" >> .config
+cpu_arch="$(awk -F ': ' '/model name/ {print $2}' /proc/cpuinfo | head -n1)"
+[ -n "${cpu_arch}" ] || cpu_arch="ARMv7 Processor rev 4 (v7l)"
 
-# =========================7. 强制前端读取实时频率 ===================
-LUCI_JS="feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/include/10_system.js"
+cpu_cores="$(grep -c "processor" /proc/cpuinfo)"
 
-if [ -f "$LUCI_JS" ]; then
-    # 1. 替换直接读取 sysfs 文件的路径
-    sed -i "s|/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq|/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq|g" "$LUCI_JS"
-    sed -i "s|/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq|/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq|g" "$LUCI_JS"
-    
-    # 2. 双保险：防止老代码直接读取静态的 boardinfo.cpufreq 变量
-    # 将其替换为直接读取实时文件，并转换成数字
-    sed -i "s|boardinfo\.cpufreq|parseInt(fs.read('\/sys\/devices\/system\/cpu\/cpu0\/cpufreq\/scaling_cur_freq'))|g" "$LUCI_JS"
-    
-    echo "✅ 已修改前端 JS：强制读取 scaling_cur_freq 以实现动态频率显示"
+hw_freq=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq 2>/dev/null)
+sc_freq=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
+
+if [ "$sc_freq" = "1200000" ]; then
+    cpu_freq="1200MHz"
+elif [ -n "$hw_freq" ]; then
+    cpu_freq="$((hw_freq / 1000))MHz"
 else
-    echo "⚠️ 未找到 $LUCI_JS，跳过修改"
+    cpu_freq="?"
 fi
+
+echo -n "$cpu_arch x $cpu_cores ($cpu_freq)"
+EOF
+
+# 赋予可执行权限，防止刷机后权限不对导致无法运行
+chmod +x package/base-files/files/sbin/cpuinfo
