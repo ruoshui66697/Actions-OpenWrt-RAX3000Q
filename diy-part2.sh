@@ -118,31 +118,18 @@ echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
 # 确保目标目录存在
 mkdir -p package/base-files/files/sbin
 
-# 将我们定制好的 cpuinfo 脚本写入固件源码目录
+# 使用在真机上验证成功的极简脚本
 cat << 'EOF' > package/base-files/files/sbin/cpuinfo
 #!/bin/sh
-
-cpu_arch="$(awk -F ': ' '/model name/ {print $2}' /proc/cpuinfo | head -n1)"
-[ -n "${cpu_arch}" ] || cpu_arch="ARMv7 Processor rev 4 (v7l)"
-
-cpu_cores="$(grep -c "processor" /proc/cpuinfo)"
-
-hw_freq=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq 2>/dev/null)
-sc_freq=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
-
-if [ "$sc_freq" = "1200000" ]; then
-    cpu_freq="1200MHz"
-elif [ -n "$hw_freq" ]; then
-    cpu_freq="$((hw_freq / 1000))MHz"
-else
-    cpu_freq="?"
-fi
-
-echo -n "$cpu_arch x $cpu_cores ($cpu_freq)"
+ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed 's/^ *//')
+CORES=$(grep -c "^processor" /proc/cpuinfo)
+FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
+FREQ=$((FREQ / 1000))
+echo "$ARCH x $CORES (${FREQ}MHz)"
 EOF
 
-# 赋予可执行权限，防止刷机后权限不对导致无法运行
-chmod +x package/base-files/files/sbin/cpuinfo
+# 赋予可执行权限
+chmod 755 package/base-files/files/sbin/cpuinfo
 
 # =========================7. 修复前端无权获取 CPU 频率的问题 ===================
 ACL_FILE="feeds/luci/modules/luci-base/root/usr/share/rpcd/acl.d/luci-base.json"
@@ -150,4 +137,6 @@ if [ -f "$ACL_FILE" ]; then
     # 把 getCPUInfo 塞进 ubus 的 luci 权限列表里
     sed -i 's/"luci": \[ "getFeatures" \]/"luci": [ "getFeatures", "getCPUInfo" ]/' "$ACL_FILE"
     echo "✅ 已修改 ACL，赋予前端读取 getCPUInfo 的权限"
+else
+    echo "⚠️ 未找到 luci-base.json，跳过修改"
 fi
