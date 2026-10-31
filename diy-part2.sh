@@ -9,6 +9,11 @@
 # File name: diy-part2.sh
 # Description: OpenWrt DIY script part 2 (After Update feeds)
 #
+# ============================================================
+# 0. 禁用 autocore-arm 防止与<6>自定义 cpuinfo 冲突
+# ============================================================
+sed -i '/CONFIG_PACKAGE_autocore-arm/d' .config
+sed -i '/CONFIG_PACKAGE_luci-app-autocore/d' .config
 
 # ============================================================
 # 1. 添加 mwan3 多拨/负载均衡 及其依赖 (暂时注释，以后需要再取消)
