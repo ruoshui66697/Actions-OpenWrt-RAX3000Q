@@ -143,3 +143,11 @@ EOF
 
 # 赋予可执行权限，防止刷机后权限不对导致无法运行
 chmod +x package/base-files/files/sbin/cpuinfo
+
+# =========================7. 修复前端无权获取 CPU 频率的问题 ===================
+ACL_FILE="feeds/luci/modules/luci-base/root/usr/share/rpcd/acl.d/luci-base.json"
+if [ -f "$ACL_FILE" ]; then
+    # 把 getCPUInfo 塞进 ubus 的 luci 权限列表里
+    sed -i 's/"luci": \[ "getFeatures" \]/"luci": [ "getFeatures", "getCPUInfo" ]/' "$ACL_FILE"
+    echo "✅ 已修改 ACL，赋予前端读取 getCPUInfo 的权限"
+fi
