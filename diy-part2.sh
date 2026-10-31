@@ -123,14 +123,16 @@ echo "CONFIG_PACKAGE_luci-app-nss-status=y" >> .config
 # 尝试加入中文包（如果仓库里有的话，没有这行也不会报错，只是没中文）
 echo "CONFIG_PACKAGE_luci-i18n-nss-zh-cn=y" >> .config
 
-# =========================7. 修正概览页最大频率显示 ===================
-# 找到系统生成 board.json 的脚本
-CONFIG_GEN="package/base-files/files/bin/config_generate"
+# =========================7. 强制前端读取实时频率 ===================
+LUCI_JS="feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/include/10_system.js"
 
-# 如果存在这个脚本，就把里面获取最大频率的逻辑，强制替换为写死 1200000
-if [ -f "$CONFIG_GEN" ]; then
-    # 尝试匹配 cpuinfo_max_freq 或者 scaling_max_freq 的读取
-#    sed -i 's/\(cpufreq=.*\)/\1 || echo "1200000"/' "$CONFIG_GEN"
-    sed -i 's/cpufreq=.*/cpufreq="1200000"/' "$CONFIG_GEN"
-    echo "✅ 已强制修改 board.json 的最大频率为 1200MHz"
+if [ -f "$LUCI_JS" ]; then
+    # 匹配任何尝试读取 scaling_max_freq 或 cpuinfo_max_freq 的语句
+    # 将其替换为读取 scaling_cur_freq
+    sed -i "s|/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq|/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq|g" "$LUCI_JS"
+    sed -i "s|/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq|/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq|g" "$LUCI_JS"
+    
+    echo "✅ 已修改前端 JS：强制读取 scaling_cur_freq 以实现动态频率显示"
+else
+    echo "⚠️ 未找到 $LUCI_JS，跳过修改"
 fi
