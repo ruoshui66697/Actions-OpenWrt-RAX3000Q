@@ -45,6 +45,41 @@
 	thermal-zones {
 		status = "ok";
 	};
+
+// 👇👇👇 从这里开始是你新加的 👇👇👇
+    cpus {
+        cpu@0 {
+            operating-points-v2 = <&cpu_opp_table>;
+        };
+        cpu@1 {
+            operating-points-v2 = <&cpu_opp_table>;
+        };
+    };
+
+    cpu_opp_table: opp-table-cpu {
+        compatible = "operating-points-v2";
+        opp-shared;
+
+        opp-800000000 {
+            opp-hz = /bits/ 64 <800000000>;
+            opp-microvolt = <1100000>;
+            clock-latency-ns = <200000>;
+        };
+
+        opp-1008000000 {
+            opp-hz = /bits/ 64 <1008000000>;
+            opp-microvolt = <1100000>;
+            clock-latency-ns = <200000>;
+        };
+
+        opp-1200000000 {
+            opp-hz = /bits/ 64 <1200000000>;
+            opp-microvolt = <1100000>;
+            clock-latency-ns = <200000>;
+        };
+
+    };
+// 👆👆👆 到这里结束 👆👆👆
 };
 
 &tmc_etr {
@@ -568,12 +603,4 @@
 	status = "ok";
 };
 
-// 👇👇👇 从这里开始是你新加的 👇👇👇
-&cpu_opp_table {
-    opp-1200000000 {
-        opp-hz = /bits/ 64 <1200000000>;
-        opp-microvolt = <1100000>;
-        clock-latency-ns = <200000>;
-    };
-};
-// 👆👆👆 到这里结束 👆👆👆
+
