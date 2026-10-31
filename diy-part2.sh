@@ -122,4 +122,4 @@ echo "CONFIG_PACKAGE_luci-app-nss-status=y" >> .config
 
 # 尝试加入中文包（如果仓库里有的话，没有这行也不会报错，只是没中文）
 echo "CONFIG_PACKAGE_luci-i18n-nss-zh-cn=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-nss-status-zh-cn=y" >> .config
+
