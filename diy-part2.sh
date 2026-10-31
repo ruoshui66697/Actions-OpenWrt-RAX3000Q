@@ -123,3 +123,14 @@ echo "CONFIG_PACKAGE_luci-app-nss-status=y" >> .config
 # 尝试加入中文包（如果仓库里有的话，没有这行也不会报错，只是没中文）
 echo "CONFIG_PACKAGE_luci-i18n-nss-zh-cn=y" >> .config
 
+# =========================7. 修正概览页最大频率显示 ===================
+# 找到系统生成 board.json 的脚本
+CONFIG_GEN="package/base-files/files/bin/config_generate"
+
+# 如果存在这个脚本，就把里面获取最大频率的逻辑，强制替换为写死 1200000
+if [ -f "$CONFIG_GEN" ]; then
+    # 尝试匹配 cpuinfo_max_freq 或者 scaling_max_freq 的读取
+    sed -i 's/\(cpufreq=.*\)/\1 || echo "1200000"/' "$CONFIG_GEN"
+    sed -i 's/cpufreq=.*/cpufreq="1200000"/' "$CONFIG_GEN"
+    echo "✅ 已强制修改 board.json 的最大频率为 1200MHz"
+fi
