@@ -127,10 +127,13 @@ echo "CONFIG_PACKAGE_luci-i18n-nss-zh-cn=y" >> .config
 LUCI_JS="feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/include/10_system.js"
 
 if [ -f "$LUCI_JS" ]; then
-    # 匹配任何尝试读取 scaling_max_freq 或 cpuinfo_max_freq 的语句
-    # 将其替换为读取 scaling_cur_freq
+    # 1. 替换直接读取 sysfs 文件的路径
     sed -i "s|/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq|/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq|g" "$LUCI_JS"
     sed -i "s|/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq|/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq|g" "$LUCI_JS"
+    
+    # 2. 双保险：防止老代码直接读取静态的 boardinfo.cpufreq 变量
+    # 将其替换为直接读取实时文件，并转换成数字
+    sed -i "s|boardinfo\.cpufreq|parseInt(fs.read('\/sys\/devices\/system\/cpu\/cpu0\/cpufreq\/scaling_cur_freq'))|g" "$LUCI_JS"
     
     echo "✅ 已修改前端 JS：强制读取 scaling_cur_freq 以实现动态频率显示"
 else
