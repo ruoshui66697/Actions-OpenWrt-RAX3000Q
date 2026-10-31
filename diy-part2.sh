@@ -114,17 +114,37 @@ echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
 
 
-# =========================6. 定制底层 cpuinfo 脚本（解决 1.2GHz 动态显示）===================
+# =========================6. 定制底层 cpuinfo 脚本（带防抖过滤）===================
 # 确保目标目录存在
 mkdir -p package/base-files/files/sbin
 
-# 使用在真机上验证成功的极简脚本
+# 写入带 sleep 1 防抖过滤的脚本
 cat << 'EOF' > package/base-files/files/sbin/cpuinfo
 #!/bin/sh
 ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed 's/^ *//')
 CORES=$(grep -c "^processor" /proc/cpuinfo)
-FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
-FREQ=$((FREQ / 1000))
+
+# 第一次采样（网页轮询瞬间，大概率是 1200）
+F1=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
+
+# 核心魔法：死等 1 秒，熬过内核的强制锁频期
+sleep 1
+
+# 第二次采样（此时一定会回落到真实的待机频率）
+F2=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
+
+# 取两者的最小值，完美过滤假高峰
+if [ -n "$F1" ] && [ -n "$F2" ]; then
+    if [ "$F1" -lt "$F2" ]; then
+        FREQ=$((F1 / 1000))
+    else
+        FREQ=$((F2 / 1000))
+    fi
+else
+    FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
+    FREQ=$((FREQ / 1000))
+fi
+
 echo "$ARCH x $CORES (${FREQ}MHz)"
 EOF
 
@@ -134,7 +154,7 @@ chmod 755 package/base-files/files/sbin/cpuinfo
 # =========================7. 修复前端无权获取 CPU 频率的问题 ===================
 ACL_FILE="feeds/luci/modules/luci-base/root/usr/share/rpcd/acl.d/luci-base.json"
 if [ -f "$ACL_FILE" ]; then
-    # 把 getCPUInfo 塞进 ubus 的 luci 权限列表里
+    # 把 getCPUInfo 塞进 ubus 的 luci 权限列表里，否则网页会报错拿不到数据
     sed -i 's/"luci": \[ "getFeatures" \]/"luci": [ "getFeatures", "getCPUInfo" ]/' "$ACL_FILE"
     echo "✅ 已修改 ACL，赋予前端读取 getCPUInfo 的权限"
 else
