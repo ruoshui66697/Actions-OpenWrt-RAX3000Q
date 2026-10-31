@@ -130,7 +130,7 @@ CONFIG_GEN="package/base-files/files/bin/config_generate"
 # 如果存在这个脚本，就把里面获取最大频率的逻辑，强制替换为写死 1200000
 if [ -f "$CONFIG_GEN" ]; then
     # 尝试匹配 cpuinfo_max_freq 或者 scaling_max_freq 的读取
-    sed -i 's/\(cpufreq=.*\)/\1 || echo "1200000"/' "$CONFIG_GEN"
+#    sed -i 's/\(cpufreq=.*\)/\1 || echo "1200000"/' "$CONFIG_GEN"
     sed -i 's/cpufreq=.*/cpufreq="1200000"/' "$CONFIG_GEN"
     echo "✅ 已强制修改 board.json 的最大频率为 1200MHz"
 fi
