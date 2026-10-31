@@ -28,7 +28,7 @@
 # echo "CONFIG_PACKAGE_kmod-ipt-ipopt=y" >> .config
 
 # ============================================================
-# 5. 修改默认 LAN 口 IP 地址
+# 2. 修改默认 LAN 口 IP 地址
 # ============================================================
 # 将源码中的默认 IP 192.168.1.1 替换为你想要的 IP（例如 192.168.6.1）
 sed -i 's/192.168.1.1/192.168.6.1/g' package/base-files/files/bin/config_generate
@@ -86,7 +86,7 @@ echo "CONFIG_PACKAGE_luci-app-smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
 
 # ============================================================
-# 6. 添加 CPU 频率调节 (cpufreq) LuCI 界面及中文语言包
+# 5. 添加 CPU 频率调节 (cpufreq) LuCI 界面及中文语言包
 # ============================================================
 # 检查 feed 里是否存在 luci-app-cpufreq，不存在则手动拉取
 if [ ! -d "feeds/luci/applications/luci-app-cpufreq" ]; then
@@ -102,8 +102,17 @@ sed -i '/CONFIG_PACKAGE_luci-i18n-cpufreq/d' .config
 # 启用 cpufreq 插件
 echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
 # ============================================================
-# 7. 确保 hotplug 脚本可执行
+# 6. 确保 hotplug 脚本可执行
 # ============================================================
 [ -d "files/etc/hotplug.d/button" ] && chmod +x files/etc/hotplug.d/button/*
 # 中文语言包（21.02 分支使用 zh-cn 命名，与你现有 base/firewall 等一致）
 echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
+
+# =========================7.NSS===================================
+# 1. 拉取 NSS 前端核心包 和 概览页状态注入包
+git clone https://github.com/laipeng668/luci-app-nss.git package/luci-app-nss
+git clone https://github.com/laipeng668/luci-app-nss-status.git package/luci-app-nss-status
+
+# 2. 强制让编译系统把这两个包都编进固件里
+echo "CONFIG_PACKAGE_luci-app-nss=y" >> .config
+echo "CONFIG_PACKAGE_luci-app-nss-status=y" >> .config
