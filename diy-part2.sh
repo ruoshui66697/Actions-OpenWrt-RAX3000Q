@@ -10,10 +10,20 @@
 # Description: OpenWrt DIY script part 2 (After Update feeds)
 #
 # ============================================================
-# 0. 启用 autocore-arm 以恢复原生温度显示，并解决<6>冲突
+# 0. 启用 autocore-arm 以恢复原生温度显示，并解决冲突
 # ============================================================
 sed -i '/CONFIG_PACKAGE_autocore-arm/d' .config
 echo "CONFIG_PACKAGE_autocore-arm=y" >> .config
+
+# ============================================================
+# 0.1 【新增】删除 base-files 中的 cpuinfo，避免与 autocore 的文件冲突
+# ============================================================
+# base-files 可能在不同路径提供 sbin/cpuinfo，全部清理，让 autocore 成为唯一提供者
+rm -f package/base-files/files/sbin/cpuinfo
+rm -f package/base-files/files/usr/bin/cpuinfo
+rm -f feeds/base/base-files/files/sbin/cpuinfo 2>/dev/null || true
+rm -f feeds/base/base-files/files/usr/bin/cpuinfo 2>/dev/null || true
+echo "✅ 已清理 base-files 中的 cpuinfo，避免文件冲突"
 
 # 核心魔法：直接修改 autocore 的 Makefile，阻止它安装自带的 cpuinfo
 # 这样它就不敢跟我们自定义的 cpuinfo 抢位置了，冲突直接消除！
@@ -41,7 +51,6 @@ echo "CONFIG_PACKAGE_autocore-arm=y" >> .config
 # ============================================================
 # 将源码中的默认 IP 192.168.1.1 替换为你想要的 IP（例如 192.168.6.1）
 sed -i 's/192.168.1.1/192.168.6.1/g' package/base-files/files/bin/config_generate
-
 
 # ============================================================
 # 3. 强制确认基础系统包（防止被 make defconfig 裁剪）
@@ -117,7 +126,6 @@ echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
 # 中文语言包（21.02 分支使用 zh-cn 命名，与你现有 base/firewall 等一致）
 echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
 
-
 # =========================6. 定制底层 cpuinfo 脚本（完美融入 autocore）===================
 # 直接覆盖 autocore 源码包中的 cpuinfo 文件，避免任何文件冲突！
 AUTOCORE_DIR="feeds/packages/utils/autocore"
@@ -171,3 +179,42 @@ if [ -f "$ACL_FILE" ]; then
 else
     echo "⚠️ 未找到 luci-base.json，跳过修改"
 fi
+
+# =========================8. 【新增】强制 CoreMark 静态编译 ===================
+# 目的：让 /bin/coremark 不再依赖动态 musl 库，彻底解决段错误/卡死
+COREMARK_MAKEFILE=""
+for candidate in \
+    "feeds/packages/utils/coremark/Makefile" \
+    "package/utils/coremark/Makefile" \
+    "feeds/packages/utils/coremark/Makefile"
+do
+    if [ -f "$candidate" ]; then
+        COREMARK_MAKEFILE="$candidate"
+        break
+    fi
+done
+
+if [ -n "$COREMARK_MAKEFILE" ]; then
+    echo "找到 CoreMark Makefile: $COREMARK_MAKEFILE"
+    # 注入静态链接标志（避免重复注入）
+    if ! grep -q "TARGET_LDFLAGS += -static" "$COREMARK_MAKEFILE"; then
+        sed -i '/define Build\/Compile/i TARGET_LDFLAGS += -static\n' "$COREMARK_MAKEFILE"
+        echo "✅ 已注入 TARGET_LDFLAGS += -static"
+    else
+        echo "ℹ️ TARGET_LDFLAGS += -static 已存在，跳过"
+    fi
+
+    if ! grep -q "TARGET_CFLAGS += -static" "$COREMARK_MAKEFILE"; then
+        sed -i '/define Build\/Compile/i TARGET_CFLAGS += -static\n' "$COREMARK_MAKEFILE"
+        echo "✅ 已注入 TARGET_CFLAGS += -static"
+    else
+        echo "ℹ️ TARGET_CFLAGS += -static 已存在，跳过"
+    fi
+else
+    echo "⚠️ 未找到 CoreMark Makefile，请检查 feed 路径。"
+    echo "   如果 CoreMark 包不在 feeds/packages/utils/coremark，请手动确认路径后调整脚本。"
+fi
+
+echo "========================================="
+echo "diy-part2.sh 执行完毕，可以开始云编译。"
+echo "========================================="
