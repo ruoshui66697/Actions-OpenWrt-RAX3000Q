@@ -251,6 +251,16 @@ else
     echo "⚠️ 未找到 CoreMark Makefile，跳过单线程修改"
 fi
 
+# =========================9.1 命令行覆盖 MULTITHREAD，确保 core_portme.mak 里的定义失效 ===================
+if [ -n "$COREMARK_MK" ]; then
+    if grep -q '\$(MAKE) -C \$(PKG_BUILD_DIR)' "$COREMARK_MK"; then
+        sed -i 's/\$(MAKE) -C \$(PKG_BUILD_DIR)/$(MAKE) -C $(PKG_BUILD_DIR) MULTITHREAD=/' "$COREMARK_MK"
+        echo "✅ 已在 \$(MAKE) 调用中传递 MULTITHREAD= 空值，覆盖 core_portme.mak 里的定义"
+    else
+        echo "⚠️ 未找到 \$(MAKE) -C \$(PKG_BUILD_DIR) 调用，跳过命令行覆盖"
+    fi
+fi
+
 # =========================10. 修复 CoreMark mkdir 目录已存在导致的编译失败 ===================
 # 根因：上游 Makefile 使用 mkdir 而非 mkdir -p，重复编译或目录残留时会报 File exists
 COREMARK_MK_FIX=""
