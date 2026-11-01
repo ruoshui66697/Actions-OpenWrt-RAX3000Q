@@ -126,33 +126,37 @@ echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
 # 中文语言包（21.02 分支使用 zh-cn 命名，与你现有 base/firewall 等一致）
 echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
 
-# =========================6. 定制底层 cpuinfo 脚本（通过 base-files 安装，彻底避开 autocore 干扰）===================
-# 步骤 A：删除 autocore Makefile 中安装 cpuinfo 的指令，防止它覆盖我们的脚本
-AUTOCORE_MAKEFILE="feeds/packages/utils/autocore/Makefile"
-if [ -f "$AUTOCORE_MAKEFILE" ]; then
-    sed -i '/sbin\/cpuinfo/d' "$AUTOCORE_MAKEFILE"
-    echo "✅ 已删除 autocore Makefile 中的 cpuinfo 安装指令"
-else
-    echo "⚠️ 未找到 autocore Makefile，跳过"
+# =========================6. 定制底层 cpuinfo 脚本（替换 autocore 源码中所有 cpuinfo，base-files 不提供）===================
+AUTOCORE_DIR=""
+for d in \
+    "feeds/packages/utils/autocore" \
+    "feeds/base/utils/autocore" \
+    "package/utils/autocore"
+do
+    if [ -d "$d" ]; then
+        AUTOCORE_DIR="$d"
+        break
+    fi
+done
+if [ -z "$AUTOCORE_DIR" ]; then
+    AUTOCORE_DIR=$(find feeds package -maxdepth 6 -type d -name autocore 2>/dev/null | head -n1)
 fi
 
-# 步骤 B：通过 base-files 安装自定义 cpuinfo 脚本（读 scaling_cur_freq，能反映 1200MHz）
-BASE_FILES_SBIN="package/base-files/files/sbin"
-mkdir -p "$BASE_FILES_SBIN"
+echo "===== autocore 目录: $AUTOCORE_DIR ====="
+if [ -n "$AUTOCORE_DIR" ]; then
+    echo "----- autocore 下所有 cpuinfo 文件 -----"
+    find "$AUTOCORE_DIR" -type f -name cpuinfo -print 2>/dev/null || true
+    echo "----- Makefile 中 cpuinfo 相关行 -----"
+    grep -n "cpuinfo" "$AUTOCORE_DIR/Makefile" 2>/dev/null || echo "（无）"
+    echo "---------------------------------------"
+fi
 
-cat << 'EOF' > "$BASE_FILES_SBIN/cpuinfo"
-#!/bin/sh
-
-ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed 's/^ *//')
+CPUINFO_SCRIPT='#!/bin/sh
+ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed "s/^ *//")
 CORES=$(grep -c "^processor" /proc/cpuinfo)
-
-# 关键：读 scaling_cur_freq，在 IPQ5018 上它反映实际运行频率（可到 1200000）
 FREQ_PATH="/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
-
 F1=$(cat "$FREQ_PATH" 2>/dev/null)
-
 if [ -n "$F1" ] && [ "$F1" -gt 0 ] 2>/dev/null; then
-    # 如果读到非最低频，等 1 秒再采一次，取较小值，避免瞬时调频抖动
     if [ "$F1" -gt 800000 ]; then
         sleep 1
         F2=$(cat "$FREQ_PATH" 2>/dev/null)
@@ -167,12 +171,26 @@ if [ -n "$F1" ] && [ "$F1" -gt 0 ] 2>/dev/null; then
 else
     FREQ="unknown"
 fi
+echo "$ARCH x $CORES (${FREQ}MHz)"'
 
-echo "$ARCH x $CORES (${FREQ}MHz)"
-EOF
+if [ -n "$AUTOCORE_DIR" ] && [ -d "$AUTOCORE_DIR/files" ]; then
+    FOUND=0
+    while IFS= read -r f; do
+        printf '%s\n' "$CPUINFO_SCRIPT" > "$f"
+        chmod 755 "$f"
+        echo "✅ 已替换: $f"
+        FOUND=1
+    done < <(find "$AUTOCORE_DIR/files" -type f -name cpuinfo 2>/dev/null)
 
-chmod 755 "$BASE_FILES_SBIN/cpuinfo"
-echo "✅ 已通过 base-files 安装自定义 cpuinfo 脚本（读 scaling_cur_freq）"
+    if [ "$FOUND" -eq 0 ]; then
+        mkdir -p "$AUTOCORE_DIR/files/sbin"
+        printf '%s\n' "$CPUINFO_SCRIPT" > "$AUTOCORE_DIR/files/sbin/cpuinfo"
+        chmod 755 "$AUTOCORE_DIR/files/sbin/cpuinfo"
+        echo "✅ 未找到已有 cpuinfo，已创建: $AUTOCORE_DIR/files/sbin/cpuinfo"
+    fi
+else
+    echo "⚠️ 未找到 autocore/files 目录"
+fi
 
 # =========================7. 修复前端无权获取 CPU 频率的问题 ===================
 ACL_FILE="feeds/luci/modules/luci-base/root/usr/share/rpcd/acl.d/luci-base.json"
