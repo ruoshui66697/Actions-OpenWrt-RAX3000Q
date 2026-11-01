@@ -76,12 +76,23 @@ echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
 
 # ============================================================
-# 6. 【彻底终结 cpuinfo 冲突】拆掉 base-files，全权交给 autocore 安装
+# 6. 【终极解决 cpuinfo 冲突与频率读取】物理斩断两家的 cpuinfo
 # ============================================================
-# 6.1 把我们想要的脚本内容定义好
-CPUINFO_SCRIPT='#!/bin/sh
-ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed "s/^ *//")
+# 6.1 找到 autocore 和 base-files 的 Makefile，物理删除所有带 cpuinfo 的安装行
+find feeds -path "*/autocore/Makefile" -exec sed -i '/cpuinfo/d' {} + 2>/dev/null
+find feeds package -path "*/base-files/Makefile" -exec sed -i '/cpuinfo/d' {} + 2>/dev/null
+
+# 6.2 物理删除源码里自带的 cpuinfo（防止残留）
+find feeds -path "*/autocore*" -name "cpuinfo" -type f -exec rm -f {} + 2>/dev/null
+find feeds package -path "*base-files*" -name "cpuinfo" -type f -exec rm -f {} + 2>/dev/null
+
+# 6.3 利用 OpenWrt 的 files/ 覆盖机制强行注入我们的脚本
+mkdir -p files/sbin
+cat << 'EOF' > files/sbin/cpuinfo
+#!/bin/sh
+ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed 's/^ *//')
 CORES=$(grep -c "^processor" /proc/cpuinfo)
+# 核心：读取 scaling_cur_freq，性能模式下能真正抓到 1200000
 FREQ_PATH="/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
 F1=$(cat "$FREQ_PATH" 2>/dev/null)
 if [ -n "$F1" ] && [ "$F1" -gt 0 ] 2>/dev/null; then
@@ -99,25 +110,10 @@ if [ -n "$F1" ] && [ "$F1" -gt 0 ] 2>/dev/null; then
 else
     FREQ="unknown"
 fi
-echo "$ARCH x $CORES (${FREQ}MHz)"'
-
-# 6.2 重写 autocore 源码里的 cpuinfo
-AUTOCORE_DIR=$(find feeds package -type d -name "autocore" | grep -v build_dir | head -n 1)
-if [ -n "$AUTOCORE_DIR" ]; then
-    mkdir -p "$AUTOCORE_DIR/files/sbin"
-    printf '%s\n' "$CPUINFO_SCRIPT" > "$AUTOCORE_DIR/files/sbin/cpuinfo"
-    chmod 755 "$AUTOCORE_DIR/files/sbin/cpuinfo"
-    echo "✅ 已用自定义脚本覆盖 autocore 源文件"
-fi
-
-# 6.3 消灭 base-files 里的罪魁祸首
-BASE_DIR=$(find feeds package -type d -name "base-files" | grep -v build_dir | head -n 1)
-if [ -n "$BASE_DIR" ]; then
-    # 删除源码自带的 cpuinfo，并注释掉 Makefile 里的安装行
-    rm -f "$BASE_DIR/files/sbin/cpuinfo" "$BASE_DIR/files/usr/bin/cpuinfo" 2>/dev/null
-    sed -i '/cpuinfo/s/^/# /g' "$BASE_DIR/Makefile" 2>/dev/null
-    echo "✅ 已彻底阉割 base-files 里的 cpuinfo 提供能力"
-fi
+echo "$ARCH x $CORES (${FREQ}MHz)"
+EOF
+chmod 755 files/sbin/cpuinfo
+echo "✅ 已通过 files/ 机制注入自定义 cpuinfo 脚本"
 
 # ============================================================
 # 7. 修复前端 ACL 权限
