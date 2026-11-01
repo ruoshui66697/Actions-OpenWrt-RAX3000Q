@@ -127,7 +127,7 @@ if [ -f "$ACL_FILE" ]; then
 fi
 
 # ============================================================
-# 8. 【终结报错】完全重写 CoreMark 的 Makefile（去除导致引号转义报错的宏）
+# 8. 【终结报错】完全重写 CoreMark 的 Makefile
 # ============================================================
 COREMARK_MAKEFILE="feeds/packages/utils/coremark/Makefile"
 if [ -f "$COREMARK_MAKEFILE" ]; then
@@ -154,8 +154,9 @@ define Build/Prepare
 	tar -xzf $(DL_DIR)/$(PKG_SOURCE) -C $(PKG_BUILD_DIR) --strip-components=1
 endef
 
-# 去除了 -DFLAGS_STR 宏，彻底避开嵌套双引号解析地狱！
+# 用 sed 直接把源码里的 FLAGS_STR 替换成 "OpenWrt"，避开宏定义转义地狱
 define Build/Compile
+	sed -i 's/FLAGS_STR/\"OpenWrt\"/' $(PKG_BUILD_DIR)/posix/core_portme.h
 	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) -static \
 		-I$(PKG_BUILD_DIR)/posix -I$(PKG_BUILD_DIR) \
 		-DITERATIONS=10000 \
