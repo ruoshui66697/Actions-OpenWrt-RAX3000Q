@@ -10,10 +10,14 @@
 # Description: OpenWrt DIY script part 2 (After Update feeds)
 #
 # ============================================================
-# 0. 禁用 autocore-arm 防止与<6>自定义 cpuinfo 冲突
+# 0. 启用 autocore-arm 以恢复原生温度显示，并解决<6>冲突
 # ============================================================
 sed -i '/CONFIG_PACKAGE_autocore-arm/d' .config
-sed -i '/CONFIG_PACKAGE_luci-app-autocore/d' .config
+echo "CONFIG_PACKAGE_autocore-arm=y" >> .config
+
+# 核心魔法：直接修改 autocore 的 Makefile，阻止它安装自带的 cpuinfo
+# 这样它就不敢跟我们自定义的 cpuinfo 抢位置了，冲突直接消除！
+sed -i '/sbin\/cpuinfo/d' feeds/packages/utils/autocore/Makefile
 
 # ============================================================
 # 1. 添加 mwan3 多拨/负载均衡 及其依赖 (暂时注释，以后需要再取消)
