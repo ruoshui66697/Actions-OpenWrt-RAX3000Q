@@ -232,11 +232,15 @@ do
 done
 
 if [ -n "$COREMARK_MK" ]; then
-    # 删除多线程宏，保留 -static
-    sed -i 's/-DMULTITHREAD=[0-9]*//g' "$COREMARK_MK"
+    # 删除 -DMULTITHREAD=xxx（同时支持数字和 $(VAR) 变量形式）
+    sed -i 's/-DMULTITHREAD=[^ ]*//g' "$COREMARK_MK"
+    # 删除 -DUSE_PTHREAD
     sed -i 's/-DUSE_PTHREAD//g' "$COREMARK_MK"
+    # 删除可能独立存在的 MULTITHREAD=16 这类 make 变量行
+    sed -i '/^[[:space:]]*MULTITHREAD=/d' "$COREMARK_MK"
+    # 清理多余空格
     sed -i 's/  */ /g' "$COREMARK_MK"
-    echo "✅ 已将 CoreMark 改为单线程编译（移除 MULTITHREAD/USE_PTHREAD）"
+    echo "✅ 已将 CoreMark 改为单线程编译（彻底移除 MULTITHREAD/USE_PTHREAD）"
 else
     echo "⚠️ 未找到 CoreMark Makefile，跳过单线程修改"
 fi
