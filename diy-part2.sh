@@ -114,35 +114,34 @@ echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
 
 
-# =========================6. 定制底层 cpuinfo 脚本（带防抖过滤）===================
+# =========================6. 定制底层 cpuinfo 脚本（带条件防抖过滤）===================
 # 确保目标目录存在
 mkdir -p package/base-files/files/sbin
 
-# 写入带 sleep 1 防抖过滤的脚本
+# 写入条件防抖脚本
 cat << 'EOF' > package/base-files/files/sbin/cpuinfo
 #!/bin/sh
+
 ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed 's/^ *//')
 CORES=$(grep -c "^processor" /proc/cpuinfo)
 
-# 第一次采样（网页轮询瞬间，大概率是 1200）
+# 第一次采样
 F1=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
 
-# 核心魔法：死等 1 秒，熬过内核的强制锁频期
-sleep 1
-
-# 第二次采样（此时一定会回落到真实的待机频率）
-F2=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
-
-# 取两者的最小值，完美过滤假高峰
-if [ -n "$F1" ] && [ -n "$F2" ]; then
-    if [ "$F1" -lt "$F2" ]; then
-        FREQ=$((F1 / 1000))
-    else
-        FREQ=$((F2 / 1000))
-    fi
+# 核心逻辑：如果抓到的是最低频 800，说明系统真闲，直接输出，瞬间秒开！
+if [ "$F1" -le 800000 ]; then
+    FREQ=$((F1 / 1000))
 else
-    FREQ=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
-    FREQ=$((FREQ / 1000))
+    # 如果抓到了 1008 或 1200，强制等1秒熬过内核锁频期
+    sleep 1
+    F2=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null)
+    
+    # 取两者的最小值
+    if [ -n "$F2" ] && [ "$F2" -lt "$F1" ]; then
+        FREQ=$((F2 / 1000))
+    else
+        FREQ=$((F1 / 1000))
+    fi
 fi
 
 echo "$ARCH x $CORES (${FREQ}MHz)"
