@@ -215,6 +215,27 @@ else
     echo "   如果 CoreMark 包不在 feeds/packages/utils/coremark，请手动确认路径后调整脚本。"
 fi
 
+# =========================9. 将 CoreMark 改为单线程标准跑分 ===================
+COREMARK_MK=""
+for candidate in \
+    "feeds/packages/utils/coremark/Makefile" \
+    "package/utils/coremark/Makefile"
+do
+    if [ -f "$candidate" ]; then
+        COREMARK_MK="$candidate"
+        break
+    fi
+done
+
+if [ -n "$COREMARK_MK" ]; then
+    # 删除多线程宏，保留 -static
+    sed -i 's/-DMULTITHREAD=[0-9]*//g' "$COREMARK_MK"
+    sed -i 's/-DUSE_PTHREAD//g' "$COREMARK_MK"
+    sed -i 's/  */ /g' "$COREMARK_MK"
+    echo "✅ 已将 CoreMark 改为单线程编译（移除 MULTITHREAD/USE_PTHREAD）"
+else
+    echo "⚠️ 未找到 CoreMark Makefile，跳过单线程修改"
+fi
 echo "========================================="
 echo "diy-part2.sh 执行完毕，可以开始云编译。"
 echo "========================================="
