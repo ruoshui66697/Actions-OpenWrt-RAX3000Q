@@ -17,7 +17,7 @@ echo "CONFIG_PACKAGE_autocore-arm=y" >> .config
 
 # 核心魔法：直接修改 autocore 的 Makefile，阻止它安装自带的 cpuinfo
 # 这样它就不敢跟我们自定义的 cpuinfo 抢位置了，冲突直接消除！
-sed -i '/sbin\/cpuinfo/d' feeds/packages/utils/autocore/Makefile
+# sed -i '/sbin\/cpuinfo/d' feeds/packages/utils/autocore/Makefile
 
 # ============================================================
 # 1. 添加 mwan3 多拨/负载均衡 及其依赖 (暂时注释，以后需要再取消)
@@ -118,12 +118,16 @@ echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
 
 
-# =========================6. 定制底层 cpuinfo 脚本（带条件防抖过滤）===================
-# 确保目标目录存在
-mkdir -p package/base-files/files/sbin
+# =========================6. 定制底层 cpuinfo 脚本（完美融入 autocore）===================
+# 直接覆盖 autocore 源码包中的 cpuinfo 文件，避免任何文件冲突！
+AUTOCORE_DIR="feeds/packages/utils/autocore"
 
-# 写入条件防抖脚本
-cat << 'EOF' > package/base-files/files/sbin/cpuinfo
+if [ -d "$AUTOCORE_DIR" ]; then
+    # 检查并创建 autocore 里的 sbin 目录
+    mkdir -p "$AUTOCORE_DIR/files/sbin"
+    
+    # 写入我们带防抖过滤的完美脚本
+    cat << 'EOF' > "$AUTOCORE_DIR/files/sbin/cpuinfo"
 #!/bin/sh
 
 ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed 's/^ *//')
@@ -151,8 +155,12 @@ fi
 echo "$ARCH x $CORES (${FREQ}MHz)"
 EOF
 
-# 赋予可执行权限
-chmod 755 package/base-files/files/sbin/cpuinfo
+    # 赋予可执行权限
+    chmod 755 "$AUTOCORE_DIR/files/sbin/cpuinfo"
+    echo "✅ 已成功替换 autocore 的 cpuinfo 脚本"
+else
+    echo "⚠️ 未找到 autocore 目录，跳过修改"
+fi
 
 # =========================7. 修复前端无权获取 CPU 频率的问题 ===================
 ACL_FILE="feeds/luci/modules/luci-base/root/usr/share/rpcd/acl.d/luci-base.json"
