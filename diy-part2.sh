@@ -76,18 +76,11 @@ echo "CONFIG_PACKAGE_luci-app-cpufreq=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-cpufreq-zh-cn=y" >> .config
 
 # ============================================================
-# 6. 【彻底终结 cpuinfo 冲突】利用 Makefile 在打包阶段物理剔除冲突文件
+# 6. 【彻底终结 cpuinfo 冲突】拆掉 base-files，全权交给 autocore 安装
 # ============================================================
-# 6.1 将自定义脚本写入 base-files，让 base-files 成为唯一提供者
-BASE_CPUINFO=$(find feeds/base/base-files package/base-files -type f -name "cpuinfo" 2>/dev/null | head -n 1)
-if [ -z "$BASE_CPUINFO" ]; then
-    BASE_CPUINFO="package/base-files/files/sbin/cpuinfo"
-    mkdir -p "$(dirname "$BASE_CPUINFO")"
-fi
-
-cat << 'EOF' > "$BASE_CPUINFO"
-#!/bin/sh
-ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed 's/^ *//')
+# 6.1 把我们想要的脚本内容定义好
+CPUINFO_SCRIPT='#!/bin/sh
+ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed "s/^ *//")
 CORES=$(grep -c "^processor" /proc/cpuinfo)
 FREQ_PATH="/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
 F1=$(cat "$FREQ_PATH" 2>/dev/null)
@@ -106,18 +99,24 @@ if [ -n "$F1" ] && [ "$F1" -gt 0 ] 2>/dev/null; then
 else
     FREQ="unknown"
 fi
-echo "$ARCH x $CORES (${FREQ}MHz)"
-EOF
-chmod 755 "$BASE_CPUINFO"
-echo "✅ 已将自定义脚本写入 base-files 的: $BASE_CPUINFO"
+echo "$ARCH x $CORES (${FREQ}MHz)"'
 
-# 6.2 告诉 autocore：打完包后，请自己把 cpuinfo 删掉！（物理剔除，绝不冲突）
-AUTOCORE_MK=$(find feeds -path "*/autocore/Makefile" | head -n1)
-if [ -n "$AUTOCORE_MK" ]; then
-    # 在每个 autocore 子包的 install 阶段末尾，追加一句 rm -f $(1)/sbin/cpuinfo
-    # 这样它生成的 .ipk 包里，绝对没有这个文件
-    sed -i '/define Package\/autocore.*\/install/a\\	rm -f $(1)/sbin/cpuinfo' "$AUTOCORE_MK"
-    echo "✅ 已在 autocore 的 Makefile 中注入物理剔除指令"
+# 6.2 重写 autocore 源码里的 cpuinfo
+AUTOCORE_DIR=$(find feeds package -type d -name "autocore" | grep -v build_dir | head -n 1)
+if [ -n "$AUTOCORE_DIR" ]; then
+    mkdir -p "$AUTOCORE_DIR/files/sbin"
+    printf '%s\n' "$CPUINFO_SCRIPT" > "$AUTOCORE_DIR/files/sbin/cpuinfo"
+    chmod 755 "$AUTOCORE_DIR/files/sbin/cpuinfo"
+    echo "✅ 已用自定义脚本覆盖 autocore 源文件"
+fi
+
+# 6.3 消灭 base-files 里的罪魁祸首
+BASE_DIR=$(find feeds package -type d -name "base-files" | grep -v build_dir | head -n 1)
+if [ -n "$BASE_DIR" ]; then
+    # 删除源码自带的 cpuinfo，并注释掉 Makefile 里的安装行
+    rm -f "$BASE_DIR/files/sbin/cpuinfo" "$BASE_DIR/files/usr/bin/cpuinfo" 2>/dev/null
+    sed -i '/cpuinfo/s/^/# /g' "$BASE_DIR/Makefile" 2>/dev/null
+    echo "✅ 已彻底阉割 base-files 里的 cpuinfo 提供能力"
 fi
 
 # ============================================================
