@@ -18,7 +18,7 @@ echo "CONFIG_PACKAGE_autocore-arm=y" >> .config
 # ============================================================
 # 0.1 【新增】删除 base-files 中的 cpuinfo，避免与 autocore 的文件冲突
 # ============================================================
-# base-files 可能在不同路径提供 sbin/cpuinfo，全部清理，让 autocore 成为唯一提供者
+# base-files 可能在不同路径提供 sbin/cpuinfo，全部清理，
 rm -f package/base-files/files/sbin/cpuinfo
 rm -f package/base-files/files/usr/bin/cpuinfo
 rm -f feeds/base/base-files/files/sbin/cpuinfo 2>/dev/null || true
