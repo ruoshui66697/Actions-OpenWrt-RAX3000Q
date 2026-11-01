@@ -10,7 +10,7 @@ sed -i '/CONFIG_PACKAGE_autocore-arm/d' .config
 echo "CONFIG_PACKAGE_autocore-arm=y" >> .config
 
 # ============================================================
-# 1. 添加 mwan3 (保持你的注释)
+# 1. mwan3 (保持注释)
 # ============================================================
 
 # ============================================================
@@ -106,7 +106,6 @@ if [ -n "$BASE_CPUINFO" ]; then
     printf '%s\n' "$CPUINFO_SCRIPT" > "$BASE_CPUINFO"
     echo "✅ 已用自定义脚本覆盖 base-files 的: $BASE_CPUINFO"
 else
-    # 如果没找到（极少见），在默认路径建一个
     mkdir -p package/base-files/files/sbin
     printf '%s\n' "$CPUINFO_SCRIPT" > package/base-files/files/sbin/cpuinfo
     echo "✅ 已创建 base-files 的 cpuinfo"
@@ -128,7 +127,7 @@ if [ -f "$ACL_FILE" ]; then
 fi
 
 # ============================================================
-# 8. 【终结报错】完全重写 CoreMark 的 Makefile
+# 8. 【终结报错】完全重写 CoreMark 的 Makefile（去除导致引号转义报错的宏）
 # ============================================================
 COREMARK_MAKEFILE="feeds/packages/utils/coremark/Makefile"
 if [ -f "$COREMARK_MAKEFILE" ]; then
@@ -155,11 +154,10 @@ define Build/Prepare
 	tar -xzf $(DL_DIR)/$(PKG_SOURCE) -C $(PKG_BUILD_DIR) --strip-components=1
 endef
 
-# 直接调用 gcc 静态编译，单线程，绕开官方 Makefile 缺陷
+# 去除了 -DFLAGS_STR 宏，彻底避开嵌套双引号解析地狱！
 define Build/Compile
 	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) -static \
 		-I$(PKG_BUILD_DIR)/posix -I$(PKG_BUILD_DIR) \
-		-DFLAGS_STR=\"$(TARGET_CFLAGS) $(TARGET_LDFLAGS) -static\" \
 		-DITERATIONS=10000 \
 		$(PKG_BUILD_DIR)/core_list_join.c \
 		$(PKG_BUILD_DIR)/core_main.c \
