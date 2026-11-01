@@ -124,7 +124,7 @@ if [ -f "$ACL_FILE" ]; then
 fi
 
 # ============================================================
-# 8. 【终结报错】完全重写 CoreMark 的 Makefile
+# 8. 【终结报错】完全重写 CoreMark 的 Makefile（加入 -O3 满血优化）
 # ============================================================
 COREMARK_MAKEFILE="feeds/packages/utils/coremark/Makefile"
 if [ -f "$COREMARK_MAKEFILE" ]; then
@@ -151,12 +151,12 @@ define Build/Prepare
 	tar -xzf $(DL_DIR)/$(PKG_SOURCE) -C $(PKG_BUILD_DIR) --strip-components=1
 endef
 
-# 用 sed 直接把源码里的 FLAGS_STR 替换成 "OpenWrt"，避开宏定义转义地狱
+# 暴力加上 -O3 和 -funroll-loops
 define Build/Compile
-	sed -i 's/FLAGS_STR/\"OpenWrt\"/' $(PKG_BUILD_DIR)/posix/core_portme.h
-	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) -static \
+	sed -i 's/FLAGS_STR/\"OpenWrt O3\"/' $(PKG_BUILD_DIR)/posix/core_portme.h
+	$(TARGET_CC) -O3 -funroll-loops $(TARGET_CFLAGS) $(TARGET_LDFLAGS) -static \
 		-I$(PKG_BUILD_DIR)/posix -I$(PKG_BUILD_DIR) \
-		-DITERATIONS=10000 \
+		-DITERATIONS=30000 \
 		$(PKG_BUILD_DIR)/core_list_join.c \
 		$(PKG_BUILD_DIR)/core_main.c \
 		$(PKG_BUILD_DIR)/core_matrix.c \
@@ -173,8 +173,58 @@ endef
 
 $(eval $(call BuildPackage,coremark))
 EOF
-    echo "✅ 已重写 CoreMark Makefile"
+    echo "✅ 已重写 CoreMark Makefile（加入 -O3 满血优化）"
 fi
+
+# ============================================================
+# 11. 原生 CoreMark 跑分、生成日志并直接注入网页型号
+# ============================================================
+mkdir -p files/etc
+
+# 11.1 写入纯跑分脚本（随时手动执行，随时覆盖更新）
+cat << 'EOF' > files/etc/coremark.sh
+#!/bin/sh
+
+# 锁定性能模式，榨干 1200MHz
+echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+
+# 直接运行满血版 -O3 静态 coremark 并写入临时日志
+/bin/coremark > /tmp/coremark.log 2>/dev/null
+
+# 提取分数并生成前端日志
+cat /tmp/coremark.log | grep "CoreMark 1.0" | cut -d  "/"  -f 1 > /etc/bench.log
+if [ -s "/etc/bench.log" ]; then
+    sed -i 's/CoreMark 1.0/ (CpuMark/g'  /etc/bench.log
+    echo " Scores)" >> /etc/bench.log
+    
+    # 【终极大招】直接把分数写进系统版本号，网页立刻刷新
+    sed -i "s/DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION='CMCC RAX3000Q$(cat /etc/bench.log)'/" /etc/openwrt_release
+fi
+
+# 跑完切回按需模式省电
+echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+EOF
+chmod +x files/etc/coremark.sh
+
+# 11.2 写入开机自启服务（只在没有分数时自动跑一次）
+cat << 'EOF' > files/etc/init.d/cpumark
+#!/bin/sh /etc/rc.common
+START=99
+start() {
+    (
+        sleep 15
+        # 核心判断移到这里：只有在没有分数时，开机才自动去跑
+        if [ ! -f "/etc/bench.log" ] || ! grep -q "CpuMark" "/etc/bench.log"; then
+            /etc/coremark.sh
+        fi
+    ) &
+}
+EOF
+chmod +x files/etc/init.d/cpumark
+
+# 11.3 软链接到 rc.d 实现开机自启
+mkdir -p files/etc/rc.d
+ln -sf ../init.d/cpumark files/etc/rc.d/S99cpumark
 
 echo "========================================="
 echo "脚本执行完毕，开始编译。"
