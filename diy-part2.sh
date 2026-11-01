@@ -240,6 +240,31 @@ if [ -n "$COREMARK_MK" ]; then
 else
     echo "⚠️ 未找到 CoreMark Makefile，跳过单线程修改"
 fi
+
+# =========================10. 修复 CoreMark mkdir 目录已存在导致的编译失败 ===================
+# 根因：上游 Makefile 使用 mkdir 而非 mkdir -p，重复编译或目录残留时会报 File exists
+COREMARK_MK_FIX=""
+for candidate in \
+    "feeds/packages/utils/coremark/Makefile" \
+    "package/utils/coremark/Makefile"
+do
+    if [ -f "$candidate" ]; then
+        COREMARK_MK_FIX="$candidate"
+        break
+    fi
+done
+
+if [ -n "$COREMARK_MK_FIX" ]; then
+    # 将 mkdir $(PKG_BUILD_DIR)/$(ARCH) 替换为 mkdir -p $(PKG_BUILD_DIR)/$(ARCH)
+    if grep -qE '^\s*mkdir \$\(PKG_BUILD_DIR\)/\$\(ARCH\)' "$COREMARK_MK_FIX"; then
+        sed -i 's/^\s*mkdir \$(PKG_BUILD_DIR)\/\$(ARCH)/\tmkdir -p $(PKG_BUILD_DIR)\/$(ARCH)/' "$COREMARK_MK_FIX"
+        echo "✅ 已将 CoreMark Makefile 中的 mkdir 修复为 mkdir -p"
+    else
+        echo "ℹ️ 未找到需要修复的 mkdir 行，可能已是 mkdir -p 或路径格式不同"
+    fi
+else
+    echo "⚠️ 未找到 CoreMark Makefile，跳过 mkdir 修复"
+fi
 echo "========================================="
 echo "diy-part2.sh 执行完毕，可以开始云编译。"
 echo "========================================="
