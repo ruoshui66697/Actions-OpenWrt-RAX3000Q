@@ -93,6 +93,7 @@ cat << 'EOF' > files/sbin/cpuinfo
 ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed 's/^ *//')
 CORES=$(grep -c "^processor" /proc/cpuinfo)
 # 核心：读取 scaling_cur_freq，性能模式下能真正抓到 1200000
+# =================带 sleep 1 防抖的真实频率动态读取=====================
 FREQ_PATH="/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
 F1=$(cat "$FREQ_PATH" 2>/dev/null)
 if [ -n "$F1" ] && [ "$F1" -gt 0 ] 2>/dev/null; then
@@ -116,7 +117,7 @@ chmod 755 files/sbin/cpuinfo
 echo "✅ 已通过 files/ 机制注入自定义 cpuinfo 脚本"
 
 # ============================================================
-# 7. 修复前端 ACL 权限
+# 6.4 修复前端 ACL 权限
 # ============================================================
 ACL_FILE="feeds/luci/modules/luci-base/root/usr/share/rpcd/acl.d/luci-base.json"
 if [ -f "$ACL_FILE" ]; then
@@ -124,7 +125,7 @@ if [ -f "$ACL_FILE" ]; then
 fi
 
 # ============================================================
-# 8. 【终结报错】完全重写 CoreMark 的 Makefile（加入 -O3 满血优化）
+# 7. 【终结报错】完全重写 CoreMark 的 Makefile（加入 -O3 满血优化）
 # ============================================================
 COREMARK_MAKEFILE="feeds/packages/utils/coremark/Makefile"
 if [ -f "$COREMARK_MAKEFILE" ]; then
@@ -177,11 +178,11 @@ EOF
 fi
 
 # ============================================================
-# 11. 原生 CoreMark 跑分、生成日志并直接注入网页型号
+# 7.1 原生 CoreMark 跑分、生成日志并直接注入网页型号
 # ============================================================
 mkdir -p files/etc
 
-# 11.1 写入纯跑分脚本（随时手动执行，随时覆盖更新）
+# 7.2 写入纯跑分脚本（随时手动执行，随时覆盖更新）
 cat << 'EOF' > files/etc/coremark.sh
 #!/bin/sh
 
@@ -206,7 +207,7 @@ echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 EOF
 chmod +x files/etc/coremark.sh
 
-# 11.2 写入开机自启服务（只在没有分数时自动跑一次）
+# 7.3 写入开机自启服务（只在没有分数时自动跑一次）
 cat << 'EOF' > files/etc/init.d/cpumark
 #!/bin/sh /etc/rc.common
 START=99
@@ -222,7 +223,7 @@ start() {
 EOF
 chmod +x files/etc/init.d/cpumark
 
-# 11.3 软链接到 rc.d 实现开机自启
+# 7.4 软链接到 rc.d 实现开机自启
 mkdir -p files/etc/rc.d
 ln -sf ../init.d/cpumark files/etc/rc.d/S99cpumark
 
