@@ -48,7 +48,7 @@ echo "CONFIG_PACKAGE_luci-mod-system=y" >> .config
 # ============================================================
 # 4. 自动精简插件并添加 SmartDNS
 # ============================================================
-# 强制排除 frpc (设为 not set)
+# 强制排除 frpc
 sed -i '/CONFIG_PACKAGE_luci-app-frpc/d' .config
 sed -i '/CONFIG_PACKAGE_frpc/d' .config
 sed -i '/CONFIG_PACKAGE_luci-i18n-frpc/d' .config
@@ -56,12 +56,27 @@ echo "# CONFIG_PACKAGE_luci-app-frpc is not set" >> .config
 echo "# CONFIG_PACKAGE_frpc is not set" >> .config
 echo "# CONFIG_PACKAGE_luci-i18n-frpc is not set" >> .config
 
-# 删除 xlnetacc 和 natmap
+# 强制排除 xlnetacc
 sed -i '/CONFIG_PACKAGE_luci-app-xlnetacc/d' .config
 sed -i '/CONFIG_PACKAGE_luci-i18n-xlnetacc/d' .config
+echo "# CONFIG_PACKAGE_luci-app-xlnetacc is not set" >> .config
+echo "# CONFIG_PACKAGE_luci-i18n-xlnetacc is not set" >> .config
+
+# 强制排除 natmap
 sed -i '/CONFIG_PACKAGE_luci-app-natmap/d' .config
 sed -i '/CONFIG_PACKAGE_natmap/d' .config
 sed -i '/CONFIG_PACKAGE_luci-i18n-natmap/d' .config
+echo "# CONFIG_PACKAGE_luci-app-natmap is not set" >> .config
+echo "# CONFIG_PACKAGE_natmap is not set" >> .config
+echo "# CONFIG_PACKAGE_luci-i18n-natmap is not set" >> .config
+
+# 强制排除 ddns-go (之前脚本里漏掉的)
+sed -i '/CONFIG_PACKAGE_luci-app-ddns-go/d' .config
+sed -i '/CONFIG_PACKAGE_ddns-go/d' .config
+sed -i '/CONFIG_PACKAGE_luci-i18n-ddns-go/d' .config
+echo "# CONFIG_PACKAGE_luci-app-ddns-go is not set" >> .config
+echo "# CONFIG_PACKAGE_ddns-go is not set" >> .config
+echo "# CONFIG_PACKAGE_luci-i18n-ddns-go is not set" >> .config
 
 # 添加 SmartDNS
 echo "CONFIG_PACKAGE_smartdns=y" >> .config
