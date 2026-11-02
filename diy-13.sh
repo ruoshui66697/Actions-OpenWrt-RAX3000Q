@@ -48,15 +48,22 @@ echo "CONFIG_PACKAGE_luci-mod-system=y" >> .config
 # ============================================================
 # 4. 自动精简插件并添加 SmartDNS
 # ============================================================
+# 强制排除 frpc (设为 not set)
 sed -i '/CONFIG_PACKAGE_luci-app-frpc/d' .config
 sed -i '/CONFIG_PACKAGE_frpc/d' .config
 sed -i '/CONFIG_PACKAGE_luci-i18n-frpc/d' .config
+echo "# CONFIG_PACKAGE_luci-app-frpc is not set" >> .config
+echo "# CONFIG_PACKAGE_frpc is not set" >> .config
+echo "# CONFIG_PACKAGE_luci-i18n-frpc is not set" >> .config
+
+# 删除 xlnetacc 和 natmap
 sed -i '/CONFIG_PACKAGE_luci-app-xlnetacc/d' .config
 sed -i '/CONFIG_PACKAGE_luci-i18n-xlnetacc/d' .config
 sed -i '/CONFIG_PACKAGE_luci-app-natmap/d' .config
 sed -i '/CONFIG_PACKAGE_natmap/d' .config
 sed -i '/CONFIG_PACKAGE_luci-i18n-natmap/d' .config
 
+# 添加 SmartDNS
 echo "CONFIG_PACKAGE_smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
