@@ -208,9 +208,10 @@ echo " (CpuMark : ${SCORE} Scores)" > /etc/bench.log
 sed -i "s|DISTRIB_DESCRIPTION=.*|DISTRIB_DESCRIPTION='CMCC RAX3000Q$(cat /etc/bench.log)'|" /etc/openwrt_release
 echo "CMCC RAX3000Q$(cat /etc/bench.log)" > /tmp/sysinfo/model
 
-# 7. 恢复按需模式并解除最小频率锁定
+# 7. 恢复按需模式，并明确设定 最小 800 / 最大 1200
 echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 echo 800000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 2>/dev/null
+echo 1200000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null
 EOF
 chmod +x files/etc/coremark.sh
 
