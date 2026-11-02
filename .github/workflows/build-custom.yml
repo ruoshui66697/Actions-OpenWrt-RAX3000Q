@@ -1,4 +1,4 @@
-name: Build Custom OpenWrt (DTS Fixed)
+name: Build Custom OpenWrt (DTS Fixed1.2)
 
 on:
   workflow_dispatch:
