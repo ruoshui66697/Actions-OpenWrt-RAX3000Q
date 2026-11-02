@@ -182,33 +182,30 @@ fi
 # ============================================================
 mkdir -p files/etc
 
-# 7.2 写入纯跑分脚本（只生成 bench.log，让系统自动拼型号）
+# 7.2 写入纯跑分脚本（只生成 bench.log，重启 rpcd 让系统自动拼型号）
 cat << 'EOF' > files/etc/coremark.sh
 #!/bin/sh
 
-# 1. 暴力锁死 1.2GHz（不仅锁最大，还锁最小，坚决不让它掉频）
+# 1. 暴力锁死 1.2GHz
 echo 1200000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null
 echo 1200000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 2>/dev/null
 echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
-
-# 2. 等待 2 秒，确保硬件真正满载在 1200MHz
 sleep 2
 
-# 3. 运行极限双核 coremark
+# 2. 运行满血双核 coremark
 /bin/coremark > /tmp/coremark.log 2>/dev/null
 
-# 4. 提取分数
+# 3. 提取分数
 SCORE=$(grep "CoreMark 1.0" /tmp/coremark.log | awk '{print $4}')
 [ -z "$SCORE" ] && SCORE="0.000000"
 
-# 5. 写入日志
+# 4. 写入 bench.log
 echo " (CpuMark : ${SCORE} Scores)" > /etc/bench.log
 
-# 6. 暴力刷新网页型号
-sed -i "s|DISTRIB_DESCRIPTION=.*|DISTRIB_DESCRIPTION='CMCC RAX3000Q$(cat /etc/bench.log)'|" /etc/openwrt_release
-echo "CMCC RAX3000Q$(cat /etc/bench.log)" > /tmp/sysinfo/model
+# 5. 重启 rpcd 刷新网页显示
+/etc/init.d/rpcd restart 2>/dev/null
 
-# 7. 恢复按需模式，并明确设定 最小 800 / 最大 1200
+# 6. 恢复日常按需模式 (800 - 1200)
 echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 echo 800000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 2>/dev/null
 echo 1200000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null
