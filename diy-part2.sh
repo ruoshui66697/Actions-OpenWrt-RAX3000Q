@@ -153,11 +153,13 @@ define Build/Prepare
 endef
 
 # 关键修改：-O3 必须放在 $(TARGET_CFLAGS) 之后，才能覆盖掉系统的 -Os！
+# 关键修改：过滤掉系统的 -Os 和安全保护，加上满血 -O3
 define Build/Compile
+	$(eval CM_CFLAGS := $(filter-out -Os -fstack-protector -fstack-protector-strong -D_FORTIFY_SOURCE=1, $(TARGET_CFLAGS)))
 	sed -i 's/FLAGS_STR/\"OpenWrt O3\"/' $(PKG_BUILD_DIR)/posix/core_portme.h
-	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) -O3 -funroll-loops -static \
+	$(TARGET_CC) $(CM_CFLAGS) $(TARGET_LDFLAGS) -O3 -funroll-loops -static \
 		-I$(PKG_BUILD_DIR)/posix -I$(PKG_BUILD_DIR) \
-		-DITERATIONS=40000 \
+		-DITERATIONS=960000 \
 		$(PKG_BUILD_DIR)/core_list_join.c \
 		$(PKG_BUILD_DIR)/core_main.c \
 		$(PKG_BUILD_DIR)/core_matrix.c \
@@ -182,14 +184,14 @@ fi
 # ============================================================
 mkdir -p files/etc
 
-# 7.2 写入纯跑分脚本（锁频 2 秒 + 提取数字 + 精准修改型号）
+# 7.2 写入纯跑分脚本（只生成 bench.log，让系统自动拼型号）
 cat << 'EOF' > files/etc/coremark.sh
 #!/bin/sh
 
 # 1. 锁定性能模式
 echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 
-# 2. 等待 2 秒，确保硬件真正锁死在 1200MHz
+# 2. 等待 2 秒锁频
 sleep 2
 
 # 3. 运行原生 -O3 满血 coremark
@@ -199,13 +201,10 @@ sleep 2
 SCORE=$(grep "CoreMark 1.0" /tmp/coremark.log | awk '{print $4}')
 [ -z "$SCORE" ] && SCORE="0.000000"
 
-# 5. 生成前端需要的日志
+# 5. 只生成前端需要的日志，系统底层（autocore）会自动把这里的分数加到型号里！
 echo " (CpuMark : ${SCORE} Scores)" > /etc/bench.log
 
-# 6. 精准修改“型号”，不碰“固件版本”！(原版固件无空格，这里也保持一致)
-echo "CMCC RAX3000Q(CpuMark : ${SCORE} Scores)" > /tmp/sysinfo/model
-
-# 7. 跑完切回按需模式
+# 6. 跑完切回按需模式
 echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 EOF
 chmod +x files/etc/coremark.sh
