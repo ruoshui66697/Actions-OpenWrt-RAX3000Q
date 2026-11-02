@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: write # 👈 新增：赋予发布 Release 的写权限，解决 EACCES 报错
-
+      actions: write
     steps:
     - name: Checkout
       uses: actions/checkout@main
