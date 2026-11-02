@@ -7,8 +7,8 @@ echo "========== 🔍 开始寻找并替换 DTS (1.3GHz 版本) =========="
 # 在 openwrt 源码目录中搜索目标 dts 文件
 TARGET_DTS=$(find $GITHUB_WORKSPACE/openwrt -name "ipq5000-rax3000q.dts" | head -n 1)
 
-# 注意：你的源文件带 -13 后缀，但覆盖的目标名字必须保持原样
-SOURCE_DTS="$GITHUB_WORKSPACE/custom_dts/ipq5000-rax3000q-13"
+# 修正：源文件必须加上 .dts 后缀
+SOURCE_DTS="$GITHUB_WORKSPACE/custom_dts/ipq5000-rax3000q-13.dts"
 
 if [ -n "$TARGET_DTS" ]; then
     echo "✅ 找到原 DTS 文件，路径为：$TARGET_DTS"
