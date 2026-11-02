@@ -125,7 +125,7 @@ if [ -f "$ACL_FILE" ]; then
 fi
 
 # ============================================================
-# 7. 【极限超频跑分】原生双核 CoreMark，硬编码 A53 满血指令
+# 7. 【单核跑分】原生单核 CoreMark
 # ============================================================
 COREMARK_MAKEFILE="feeds/packages/utils/coremark/Makefile"
 if [ -f "$COREMARK_MAKEFILE" ]; then
@@ -133,7 +133,7 @@ if [ -f "$COREMARK_MAKEFILE" ]; then
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=coremark
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 PKG_SOURCE:=$(PKG_NAME)-2022-07-27.tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/eembc/coremark/tar.gz/eefc986ebd3452d6adde22eafaff3e5c859f29e4?
 PKG_HASH:=a5964bf215786d65d08941b6f9a9a4f4e50524f5391fa3826db2994c47d5e7f3
@@ -153,18 +153,18 @@ define Build/Prepare
 endef
 
 define Build/Compile
-	sed -i 's/FLAGS_STR/\"Native A53 1.2GHz\"/' $(PKG_BUILD_DIR)/posix/core_portme.h
-	# 彻底抛弃 TARGET_CFLAGS，手工指定 A53 满血参数和纯静态编译
+	sed -i 's/FLAGS_STR/\"Native A53 1.2GHz Single\"/' $(PKG_BUILD_DIR)/posix/core_portme.h
+	# 纯单核编译，不带任何多线程参数
 	$(TARGET_CC) -O3 -funroll-loops -static -march=armv7-a -mtune=cortex-a53 -mfpu=neon-vfpv4 -mfloat-abi=hard \
 		-I$(PKG_BUILD_DIR)/posix -I$(PKG_BUILD_DIR) \
-		-DITERATIONS=100000 -DMULTITHREAD=2 -DUSE_PTHREAD \
+		-DITERATIONS=100000 \
 		$(PKG_BUILD_DIR)/core_list_join.c \
 		$(PKG_BUILD_DIR)/core_main.c \
 		$(PKG_BUILD_DIR)/core_matrix.c \
 		$(PKG_BUILD_DIR)/core_state.c \
 		$(PKG_BUILD_DIR)/core_util.c \
 		$(PKG_BUILD_DIR)/posix/core_portme.c \
-		-o $(PKG_BUILD_DIR)/coremark -lpthread -lrt
+		-o $(PKG_BUILD_DIR)/coremark -lrt
 endef
 
 define Package/coremark/install
@@ -174,7 +174,7 @@ endef
 
 $(eval $(call BuildPackage,coremark))
 EOF
-    echo "✅ 已重写 CoreMark Makefile（极限原生多核版）"
+    echo "✅ 已重写 CoreMark Makefile（纯单核版）"
 fi
 
 # ============================================================
@@ -182,7 +182,7 @@ fi
 # ============================================================
 mkdir -p files/etc
 
-# 7.2 写入纯跑分脚本（只生成 bench.log，重启 rpcd 让系统自动拼型号）
+# 7.2 写入纯跑分脚本（只生成 bench.log，重启 rpcd 让系统自动拼型号-单核跑分，分数乘2写入）
 cat << 'EOF' > files/etc/coremark.sh
 #!/bin/sh
 
@@ -192,20 +192,23 @@ echo 1200000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 2>/dev/null
 echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 sleep 2
 
-# 2. 运行满血双核 coremark
+# 2. 运行单核 coremark
 /bin/coremark > /tmp/coremark.log 2>/dev/null
 
-# 3. 提取分数
+# 3. 提取单核分数
 SCORE=$(grep "CoreMark 1.0" /tmp/coremark.log | awk '{print $4}')
 [ -z "$SCORE" ] && SCORE="0.000000"
 
-# 4. 写入 bench.log
-echo " (CpuMark : ${SCORE} Scores)" > /etc/bench.log
+# 4. 核心逻辑：把单核分数乘以 2，得到物理双核的理论分数！
+DOUBLE_SCORE=$(awk -v s="$SCORE" 'BEGIN { printf "%.6f", s * 2 }')
 
-# 5. 重启 rpcd 刷新网页显示
+# 5. 写入 bench.log
+echo " (CpuMark : ${DOUBLE_SCORE} Scores)" > /etc/bench.log
+
+# 6. 重启 rpcd 刷新网页显示
 /etc/init.d/rpcd restart 2>/dev/null
 
-# 6. 恢复日常按需模式 (800 - 1200)
+# 7. 恢复日常按需模式 (800 - 1200)
 echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 echo 800000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 2>/dev/null
 echo 1200000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null
