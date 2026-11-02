@@ -182,7 +182,7 @@ fi
 # ============================================================
 mkdir -p files/etc
 
-# 7.2 写入纯跑分脚本（锁频 2 秒 + 提取数字 + 安全替换型号）
+# 7.2 写入纯跑分脚本（锁频 2 秒 + 提取数字 + 精准修改型号）
 cat << 'EOF' > files/etc/coremark.sh
 #!/bin/sh
 
@@ -195,15 +195,15 @@ sleep 2
 # 3. 运行原生 -O3 满血 coremark
 /bin/coremark > /tmp/coremark.log 2>/dev/null
 
-# 4. 提取第 4 列数字（绝对不会有斜杠干扰）
+# 4. 提取第 4 列数字
 SCORE=$(grep "CoreMark 1.0" /tmp/coremark.log | awk '{print $4}')
 [ -z "$SCORE" ] && SCORE="0.000000"
 
 # 5. 生成前端需要的日志
 echo " (CpuMark : ${SCORE} Scores)" > /etc/bench.log
 
-# 6. 安全替换系统型号（使用 | 作为分隔符，避免 sed 报错）
-sed -i "s|DISTRIB_DESCRIPTION=.*|DISTRIB_DESCRIPTION='CMCC RAX3000Q (CpuMark : ${SCORE} Scores)'|" /etc/openwrt_release
+# 6. 精准修改“型号”，不碰“固件版本”！(原版固件无空格，这里也保持一致)
+echo "CMCC RAX3000Q(CpuMark : ${SCORE} Scores)" > /tmp/sysinfo/model
 
 # 7. 跑完切回按需模式
 echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
