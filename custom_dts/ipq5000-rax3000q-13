@@ -78,6 +78,11 @@
             clock-latency-ns = <200000>;
         };
 
+        opp-1300000000 {
+            opp-hz = /bits/ 64 <1300000000>;
+            opp-microvolt = <1100000>;
+            clock-latency-ns = <200000>;
+        };
     };
 // 👆👆👆 到这里结束 👆👆👆
 };
