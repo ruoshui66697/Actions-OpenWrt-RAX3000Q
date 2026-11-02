@@ -15,8 +15,8 @@ env:
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
-  DIY_P2_SH: diy-part2.sh
-  DIY_P3_SH: diy-part3.sh
+  DIY_P2_SH: diy-13.sh      # 👈 修改：指向 1.3G 的 diy 脚本
+  DIY_P3_SH: diy-03.sh      # 👈 修改：指向 1.3G 的 DTS 替换脚本
   UPLOAD_BIN_DIR: true
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
@@ -29,7 +29,7 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     permissions:
-      contents: write # 👈 新增：赋予发布 Release 的写权限，解决 EACCES 报错
+      contents: write
       actions: write
     steps:
     - name: Checkout
@@ -86,7 +86,7 @@ jobs:
       uses: klever1988/cachewrtbuild@main
       with:
         ccache: 'true'
-        mixkey: 'immortalwrt21-cortexa7-vfpv4'
+        mixkey: 'immortalwrt21-cortexa7-vfpv4-oc13' # 👈 修改：增加 oc13 避免与 1.2G 缓存串用
         prefix: ${{ github.workspace }}/openwrt
 
     - name: Load custom feeds
@@ -122,13 +122,13 @@ jobs:
         wget -r --no-parent https://cdn.jsdelivr.net/gh/immortalwrt/packages@master/net/natmap/
         cp -rf cdn.jsdelivr.net/gh/immortalwrt/packages@master/net/natmap feeds/packages/net/natmap/
         rm -rf cdn.jsdelivr.net
-        find feeds/packages/net/natmap -name index.html -exec rm {} \;
+        find feeds/packages/net/natmap -name index.html -exec rm {} \; 
 
         rm -rf feeds/packages/net/ddns-go
         wget -r --no-parent https://cdn.jsdelivr.net/gh/immortalwrt/packages@master/net/ddns-go/
         cp -rf cdn.jsdelivr.net/gh/immortalwrt/packages@master/net/ddns-go feeds/packages/net/ddns-go/
         rm -rf cdn.jsdelivr.net
-        find feeds/packages/net/ddns-go -name index.html -exec rm {} \;    
+        find feeds/packages/net/ddns-go -name index.html -exec rm {} \;     
 
         rm -rf feeds/packages/net/frp
         wget -r --no-parent https://cdn.jsdelivr.net/gh/immortalwrt/packages@master/net/frp/
@@ -149,7 +149,7 @@ jobs:
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
 
-    # 👇 核心新增：应用自定义的 DTS 修复 GPIO 26 报错
+    # 👇 核心新增：应用自定义的 DTS 修复 GPIO 26 报错 (已指向 1.3G 专属脚本)
     - name: Apply Custom DTS
       run: |
         chmod +x $DIY_P3_SH
@@ -194,7 +194,7 @@ jobs:
       uses: actions/upload-artifact@main
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
-        name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        name: OpenWrt_bin_OC13_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}  # 👈 修改：添加 OC13 标识
         path: openwrt/bin
 
     - name: Organize files
@@ -210,14 +210,14 @@ jobs:
       uses: actions/upload-artifact@main
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
-        name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        name: OpenWrt_firmware_OC13_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}  # 👈 修改：添加 OC13 标识
         path: ${{ env.FIRMWARE }}
 
     - name: Generate release tag
       id: tag
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
-        echo "release_tag=RAX3000Q-$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+        echo "release_tag=RAX3000Q-OC13-$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT  # 👈 修改：添加 OC13 标识
         touch release.txt
         echo "status=success" >> $GITHUB_OUTPUT
 
