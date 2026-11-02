@@ -92,7 +92,7 @@ cat << 'EOF' > files/sbin/cpuinfo
 #!/bin/sh
 ARCH=$(grep "Processor" /proc/cpuinfo | head -n1 | cut -d: -f2 | sed 's/^ *//')
 CORES=$(grep -c "^processor" /proc/cpuinfo)
-# 核心：读取 scaling_cur_freq，性能模式下能真正抓到 1200000
+# 核心：读取 scaling_cur_freq，性能模式下能真正抓到 1300000
 # =================带 sleep 1 防抖的真实频率动态读取=====================
 FREQ_PATH="/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
 F1=$(cat "$FREQ_PATH" 2>/dev/null)
@@ -153,7 +153,7 @@ define Build/Prepare
 endef
 
 define Build/Compile
-	sed -i 's/FLAGS_STR/\"Native A53 1.2GHz Single\"/' $(PKG_BUILD_DIR)/posix/core_portme.h
+	sed -i 's/FLAGS_STR/\"Native A53 1.3GHz Single\"/' $(PKG_BUILD_DIR)/posix/core_portme.h
 	# 纯单核编译，不带任何多线程参数
 	$(TARGET_CC) -O3 -funroll-loops -static -march=armv7-a -mtune=cortex-a53 -mfpu=neon-vfpv4 -mfloat-abi=hard \
 		-I$(PKG_BUILD_DIR)/posix -I$(PKG_BUILD_DIR) \
@@ -186,9 +186,9 @@ mkdir -p files/etc
 cat << 'EOF' > files/etc/coremark.sh
 #!/bin/sh
 
-# 1. 暴力锁死 1.2GHz
-echo 1200000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null
-echo 1200000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 2>/dev/null
+# 1. 暴力锁死 1.3GHz
+echo 1300000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null
+echo 1300000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 2>/dev/null
 echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 sleep 2
 
@@ -208,10 +208,10 @@ echo " (CpuMark : ${DOUBLE_SCORE} Scores)" > /etc/bench.log
 # 6. 重启 rpcd 刷新网页显示
 /etc/init.d/rpcd restart 2>/dev/null
 
-# 7. 恢复日常按需模式 (800 - 1200)
+# 7. 恢复日常按需模式 (800 - 1300)
 echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 echo 800000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 2>/dev/null
-echo 1200000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null
+echo 1300000 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null
 EOF
 chmod +x files/etc/coremark.sh
 
