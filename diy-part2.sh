@@ -125,7 +125,7 @@ if [ -f "$ACL_FILE" ]; then
 fi
 
 # ============================================================
-# 7. 【终结报错】完全重写 CoreMark 的 Makefile（加入 -O3 满血优化）
+# 7. 【终结报错】完全重写 CoreMark 的 Makefile（修正 -O3 覆盖问题）
 # ============================================================
 COREMARK_MAKEFILE="feeds/packages/utils/coremark/Makefile"
 if [ -f "$COREMARK_MAKEFILE" ]; then
@@ -152,12 +152,12 @@ define Build/Prepare
 	tar -xzf $(DL_DIR)/$(PKG_SOURCE) -C $(PKG_BUILD_DIR) --strip-components=1
 endef
 
-# 暴力加上 -O3 和 -funroll-loops
+# 关键修改：-O3 必须放在 $(TARGET_CFLAGS) 之后，才能覆盖掉系统的 -Os！
 define Build/Compile
 	sed -i 's/FLAGS_STR/\"OpenWrt O3\"/' $(PKG_BUILD_DIR)/posix/core_portme.h
-	$(TARGET_CC) -O3 -funroll-loops $(TARGET_CFLAGS) $(TARGET_LDFLAGS) -static \
+	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) -O3 -funroll-loops -static \
 		-I$(PKG_BUILD_DIR)/posix -I$(PKG_BUILD_DIR) \
-		-DITERATIONS=30000 \
+		-DITERATIONS=40000 \
 		$(PKG_BUILD_DIR)/core_list_join.c \
 		$(PKG_BUILD_DIR)/core_main.c \
 		$(PKG_BUILD_DIR)/core_matrix.c \
@@ -174,7 +174,7 @@ endef
 
 $(eval $(call BuildPackage,coremark))
 EOF
-    echo "✅ 已重写 CoreMark Makefile（加入 -O3 满血优化）"
+    echo "✅ 已重写 CoreMark Makefile（修正 -O3 覆盖问题）"
 fi
 
 # ============================================================
@@ -182,50 +182,39 @@ fi
 # ============================================================
 mkdir -p files/etc
 
-# 7.2 写入纯跑分脚本（随时手动执行，随时覆盖更新）
+# 7.2 写入纯跑分脚本（锁频 2 秒 + 提取数字 + 安全替换型号）
 cat << 'EOF' > files/etc/coremark.sh
 #!/bin/sh
 
-# 锁定性能模式，榨干 1200MHz
+# 1. 锁定性能模式
 echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 
-# 直接运行满血版 -O3 静态 coremark 并写入临时日志
+# 2. 等待 2 秒，确保硬件真正锁死在 1200MHz
+sleep 2
+
+# 3. 运行原生 -O3 满血 coremark
 /bin/coremark > /tmp/coremark.log 2>/dev/null
 
-# 提取分数并生成前端日志
-cat /tmp/coremark.log | grep "CoreMark 1.0" | cut -d  "/"  -f 1 > /etc/bench.log
-if [ -s "/etc/bench.log" ]; then
-    sed -i 's/CoreMark 1.0/ (CpuMark/g'  /etc/bench.log
-    echo " Scores)" >> /etc/bench.log
-    
-    # 【终极大招】直接把分数写进系统版本号，网页立刻刷新
-    sed -i "s/DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION='CMCC RAX3000Q$(cat /etc/bench.log)'/" /etc/openwrt_release
-fi
+# 4. 提取第 4 列数字（绝对不会有斜杠干扰）
+SCORE=$(grep "CoreMark 1.0" /tmp/coremark.log | awk '{print $4}')
+[ -z "$SCORE" ] && SCORE="0.000000"
 
-# 跑完切回按需模式省电
+# 5. 生成前端需要的日志
+echo " (CpuMark : ${SCORE} Scores)" > /etc/bench.log
+
+# 6. 安全替换系统型号（使用 | 作为分隔符，避免 sed 报错）
+sed -i "s|DISTRIB_DESCRIPTION=.*|DISTRIB_DESCRIPTION='CMCC RAX3000Q (CpuMark : ${SCORE} Scores)'|" /etc/openwrt_release
+
+# 7. 跑完切回按需模式
 echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 EOF
 chmod +x files/etc/coremark.sh
 
-# 7.3 写入开机自启服务（只在没有分数时自动跑一次）
-cat << 'EOF' > files/etc/init.d/cpumark
-#!/bin/sh /etc/rc.common
-START=99
-start() {
-    (
-        sleep 15
-        # 核心判断移到这里：只有在没有分数时，开机才自动去跑
-        if [ ! -f "/etc/bench.log" ] || ! grep -q "CpuMark" "/etc/bench.log"; then
-            /etc/coremark.sh
-        fi
-    ) &
-}
-EOF
-chmod +x files/etc/init.d/cpumark
-
-# 7.4 软链接到 rc.d 实现开机自启
-mkdir -p files/etc/rc.d
-ln -sf ../init.d/cpumark files/etc/rc.d/S99cpumark
+# 7.3 把跑分任务强行写进底层的 rc.local
+sed -i '/exit 0/d' package/base-files/files/etc/rc.local 2>/dev/null || true
+# 先等系统启动 20 秒，如果没有分数，就调用 coremark.sh
+echo "if [ ! -f /etc/bench.log ]; then (sleep 20 && /etc/coremark.sh) & fi" >> package/base-files/files/etc/rc.local
+echo "exit 0" >> package/base-files/files/etc/rc.local
 
 echo "========================================="
 echo "脚本执行完毕，开始编译。"
