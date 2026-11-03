@@ -47,6 +47,7 @@
 	};
 
 // 👇👇👇 从这里开始是你新加的 👇👇👇
+/*
     cpus {
         cpu@0 {
             operating-points-v2 = <&cpu_opp_table>;
@@ -84,6 +85,7 @@
             clock-latency-ns = <200000>;
         };
     };
+*/
 // 👆👆👆 到这里结束 👆👆👆
 };
 
