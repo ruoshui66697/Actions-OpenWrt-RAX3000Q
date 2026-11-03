@@ -13,3 +13,9 @@
 # sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
 
 
+# ============================================================
+# 将本地 package 目录合并到 openwrt 编译源码中（用于注入补丁等）
+# ============================================================
+if [ -d "$GITHUB_WORKSPACE/package" ]; then
+    cp -r "$GITHUB_WORKSPACE/package/"* "$GITHUB_WORKSPACE/openwrt/package/"
+fi
