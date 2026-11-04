@@ -163,32 +163,34 @@ jobs:
       run: |
         cd openwrt
         echo "=================================================="
-        echo "正在准备 mac80211 源码..."
-        # 1. 触发 mac80211 预处理，解压 QSDK 源码
+        echo "1. 正在准备 mac80211 源码..."
         make package/kernel/mac80211/prepare V=s
         
-        # 2. 动态寻找解压后的 backports 源码目录
         MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
         
         if [ -z "$MACDIR" ]; then
             echo "❌ ERROR: 找不到源码目录，准备失败！"
             exit 1
         fi
-        
         echo "✅ 找到源码目录: $MACDIR"
-        echo "=================================================="
-        echo "正在执行 Python 补丁脚本..."
         
-        # 3. 执行你仓库里的 Python 脚本
-        # 注意：${{ github.workspace }} 会指向你 Action 仓库的根目录
+        echo "2. 正在执行 Python 补丁脚本..."
         python3 "${{ github.workspace }}/ath11k_rekey_fix_5.4_qsdk.py" --source-dir "$MACDIR"
         
-        if [ $? -eq 0 ]; then
-            echo "✅ Python 脚本执行成功，源码已打补丁！"
-        else
-            echo "❌ Python 脚本执行失败，请检查脚本或源码结构。"
-            exit 1
-        fi
+        echo "3. 正在强制更新文件时间戳（极其关键）..."
+        # 更新 .c 和 .h 文件的时间，逼迫编译器认为它们被修改了
+        find "$MACDIR" -name "*.c" -exec touch {} \;
+        find "$MACDIR" -name "*.h" -exec touch {} \;
+        
+        echo "4. 清理 mac80211 编译缓存..."
+        # 这里非常关键，如果不 clean，后面的 make 会直接使用旧的 .o 文件！
+        make package/kernel/mac80211/clean V=s
+        
+        echo "5. 验证修改是否真的生效（在日志中打印结果）..."
+        # 这里我们在 YAML 日志里直接打印，如果有输出，说明代码已经改进去了
+        grep -n "is_ap_with_no_sta" "$MACDIR/drivers/net/wireless/ath/ath11k/mac.c" | head -n 3
+        
+        echo "✅ 补丁注入完毕，准备进入正式编译！"
         echo "=================================================="
 
     - name: Compile the firmware
