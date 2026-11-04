@@ -83,7 +83,13 @@ echo "CONFIG_PACKAGE_smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-app-smartdns=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
 
-
+# ============================================================
+# 开启 ath11k 的 debugfs 和 tracing 支持，方便后续排查
+# 回退：删除这三行即可
+# ============================================================
+echo "CONFIG_PACKAGE_MAC80211_DEBUGFS=y" >> .config
+echo "CONFIG_PACKAGE_MAC80211_TRACING=y" >> .config
+echo "CONFIG_PACKAGE_ATH_DEBUG=y" >> .config
 
 echo "========================================="
 echo "脚本执行完毕，开始编译。"
