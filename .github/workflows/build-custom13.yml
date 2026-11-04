@@ -147,8 +147,34 @@ jobs:
       run: |
         cd openwrt
         mkdir -p dl
+        
+        # 1. 原有需要下载的两个包（保持不变）
         wget "https://www.dropbox.com/scl/fi/9ts30p2csnlb9imaf8k68/backports-20210222-5.4-qsdk-11.5.0.5.tar.xz?rlkey=sntbyfjgg86gu2uoocgb9ggp1&st=7w81hl56&dl=1" -O dl/backports-20210222-5.4-qsdk-11.5.0.5.tar.xz
         wget "https://www.dropbox.com/scl/fi/gu7ge6jmefn72ttuop1zs/linux-5.4-qsdk-11.5.0.5.tar.xz?rlkey=tdpq0ye35x290frbh7i8uqrm8&st=jjvegqrr&dl=1" -O dl/linux-5.4-qsdk-11.5.0.5.tar.xz
+        
+        # 2. 核心修复：如果本地没有 ath-kernel 包，就用 Git 拉取源码并现场打包
+        if [ ! -f "dl/ath-kernel-2021-02-22-b157d227.tar.xz" ]; then
+          echo "ath-kernel 包缺失，正在从 Git 仓库拉取源码..."
+          
+          # 尝试从 OpenWrt 官方 GitHub 镜像克隆，这比高通原地址稳定得多
+          git clone --depth 1 https://github.com/openwrt/ath.git dl/ath-kernel-temp || \
+          git clone --depth 1 https://git.codelinaro.org/clo/qsdk/kvalo/ath.git dl/ath-kernel-temp || \
+          { echo "所有 Git 源均不可用，编译无法继续"; exit 1; }
+          
+          cd dl/ath-kernel-temp
+          # 切换到需要的提交点
+          git fetch --depth 1 origin b157d227636eb4fd9854218c4802e8dab2eadf1b
+          git checkout b157d227636eb4fd9854218c4802e8dab2eadf1b
+          cd ..
+          
+          # 打包成编译系统期望的格式
+          tar -cJf ath-kernel-2021-02-22-b157d227.tar.xz -C ath-kernel-temp .
+          rm -rf ath-kernel-temp
+          
+          echo "ath-kernel 包已成功生成！"
+        else
+          echo "ath-kernel 包已存在，跳过。"
+        fi
 
     - name: Download package
       id: package
