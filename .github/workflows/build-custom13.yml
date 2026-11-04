@@ -10,7 +10,7 @@ on:
         type: boolean
 
 env:
-  REPO_URL: https://github.com/kkstone/immortalwrt-ipq50xx
+  REPO_URL: https://github.com/ruoshui66697/immortalwrt-ipq50xx
   REPO_BRANCH: openwrt-21.02
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
