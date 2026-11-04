@@ -1,0 +1,66 @@
+#!/bin/ash /etc/rc.common
+# ============================================================
+# 用途：自动记录 ath11k GTK rekey 的相关日志和 trace
+# 回退：删除本文件，重新编译即可。
+# ============================================================
+START=99
+STOP=10
+
+start() {
+    (
+        # 等待系统网络完全启动
+        sleep 30
+        LOG_DIR="/tmp/gtk_trace"
+        mkdir -p "$LOG_DIR"
+
+        # 1. 开启固件 WMI dbglog
+        HW_DIR=$(ls -d /sys/kernel/debug/ath11k/*/mac* 2>/dev/null | head -n1)
+        if [ -n "$HW_DIR" ] && [ -f "$HW_DIR/fw_dbglog_config" ]; then
+            echo "1 0x10001" > "$HW_DIR/fw_dbglog_config" 2>/dev/null
+            echo "[$(date)] fw_dbglog_config 已设置" >> "$LOG_DIR/setup.log"
+        fi
+
+        # 2. 启动 trace-cmd，按 300 秒轮转，只记录 WMI 和 HTT
+        (
+          while true; do
+            TS=$(date +%Y%m%d_%H%M%S)
+            timeout 300 trace-cmd record \
+              -e ath11k_wmi_cmd \
+              -e ath11k_wmi_event \
+              -e ath11k_htt_pktlog \
+              -e ath11k_log_err \
+              -e ath11k_log_warn \
+              -o "$LOG_DIR/trace_${TS}.dat" 2>/dev/null
+            sleep 2
+          done
+        ) &
+
+        # 3. 清理超过 1 小时的 trace 文件，防止爆内存
+        (
+          while true; do
+            find "$LOG_DIR" -name "trace_*.dat" -mmin +60 -delete 2>/dev/null
+            sleep 600
+          done
+        ) &
+
+        # 4. 监听日志中的 Reason 16，自动存快照
+        (
+          logread -f | while read -r line; do
+            case "$line" in
+              *GROUP_KEY_HANDSHAKE_TIMEOUT*|*"reason_code:16"*|*"Reason: 16"*)
+                EVT=$(date +%Y%m%d_%H%M%S)
+                mkdir -p "$LOG_DIR/event_$EVT"
+                logread > "$LOG_DIR/event_$EVT/logread.txt" 2>&1
+                find "$LOG_DIR" -name "trace_*.dat" -mmin -5 -exec cp {} "$LOG_DIR/event_$EVT/" \; 2>/dev/null
+                echo "Event at $EVT: $line" > "$LOG_DIR/event_$EVT/README.txt"
+                ;;
+            esac
+          done
+        ) &
+    ) >/dev/null 2>&1 &
+}
+
+stop() {
+    killall trace-cmd 2>/dev/null
+    killall logread 2>/dev/null
+}
