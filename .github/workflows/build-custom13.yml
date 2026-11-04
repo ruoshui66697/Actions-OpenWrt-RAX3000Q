@@ -128,6 +128,12 @@ jobs:
     - name: Load custom configuration
       run: |
         [ -e files ] && mv files openwrt/files
+
+        # 👇 新增：赋予自定义脚本执行权限
+        if [ -d "openwrt/files/etc/init.d" ]; then
+            chmod +x openwrt/files/etc/init.d/*
+        fi
+        
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
         chmod +x $DIY_P2_SH
         cd openwrt
