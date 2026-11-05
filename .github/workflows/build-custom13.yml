@@ -183,6 +183,15 @@ jobs:
           echo "ath-kernel 包已成功生成！"
         fi
 
+    - name: Apply Plan A (Disable WNM in wpa_supplicant)
+      run: |
+        echo "=================================================="
+        echo "正在执行 fix_wnm_off.py 关闭 WNM，避免 GTK rekey 断线..."
+        # ${{ github.workspace }} 是仓库根目录，openwrt 是源码目录
+        python3 "${{ github.workspace }}/fix_wnm_off.py" "${{ github.workspace }}/openwrt"
+        echo "✅ WNM 关闭脚本执行完毕，准备编译！"
+        echo "=================================================="
+
     - name: Download package
       id: package
       run: |
@@ -192,14 +201,7 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
-    - name: Apply Plan A (Disable WNM in wpa_supplicant)
-      run: |
-        echo "=================================================="
-        echo "正在执行 fix_wnm_off.py 关闭 WNM，避免 GTK rekey 断线..."
-        # ${{ github.workspace }} 是仓库根目录，openwrt 是源码目录
-        python3 "${{ github.workspace }}/fix_wnm_off.py" "${{ github.workspace }}/openwrt"
-        echo "✅ WNM 关闭脚本执行完毕，准备编译！"
-        echo "=================================================="
+
 
     - name: Apply Plan B (Patch ath11k & mac80211 sources)
       run: |
