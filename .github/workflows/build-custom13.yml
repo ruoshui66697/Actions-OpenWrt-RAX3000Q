@@ -208,7 +208,7 @@ jobs:
         echo "✅ 找到源码目录: $MACDIR"
         
         echo "2. 正在执行 Python 补丁脚本..."
-        python3 "${{ github.workspace }}/ath11k_rekey_fix_5.4_qsdk.py" --source-dir "$MACDIR"
+        python3 "${{ github.workspace }}/ath11k_revert_fix_5.4.py" --source-dir "$MACDIR"
 
 
         
