@@ -15,8 +15,8 @@ env:
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
-  DIY_P2_SH: diy-13.sh      # 👈 修改：指向 1.3G 的 diy 脚本
-  DIY_P3_SH: diy-03.sh      # 👈 修改：指向 1.3G 的 DTS 替换脚本
+  DIY_P2_SH: diy-13.sh      # 👈 修改：指向 1.3 的 diy 脚本
+  DIY_P3_SH: diy-03.sh      # 👈 修改：指向 1.3 的 DTS 替换脚本
   UPLOAD_BIN_DIR: true
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
