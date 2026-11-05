@@ -210,9 +210,7 @@ jobs:
         echo "2. 正在执行 Python 补丁脚本..."
         python3 "${{ github.workspace }}/ath11k_rekey_fix_5.4_qsdk.py" --source-dir "$MACDIR"
 
-        # 👇 新增：执行 WMI_CIPHER_NONE 注释补丁
-        echo "2.5 正在执行 WMI_CIPHER_NONE 注释补丁..."
-        python3 "${{ github.workspace }}/ath11k_none_fix.py" --source-dir "$MACDIR"
+
         
         echo "3. 正在强制更新文件时间戳（逼迫编译器重新编译）..."
         find "$MACDIR" -name "*.c" -exec touch {} \;
