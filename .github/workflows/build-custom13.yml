@@ -192,32 +192,32 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
-    - name: Patch ath11k Rekey Bug (Python)
-      run: |
-        cd openwrt
-        echo "=================================================="
-        echo "1. 正在准备 mac80211 源码..."
-        make package/kernel/mac80211/prepare V=s
+#    - name: Patch ath11k Rekey Bug (Python)
+#      run: |
+#        cd openwrt
+#        echo "=================================================="
+#        echo "1. 正在准备 mac80211 源码..."
+#        make package/kernel/mac80211/prepare V=s
         
-        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+#        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
         
-        if [ -z "$MACDIR" ]; then
-            echo "❌ ERROR: 找不到源码目录，准备失败！"
-            exit 1
-        fi
-        echo "✅ 找到源码目录: $MACDIR"
+#        if [ -z "$MACDIR" ]; then
+#            echo "❌ ERROR: 找不到源码目录，准备失败！"
+#            exit 1
+#        fi
+#        echo "✅ 找到源码目录: $MACDIR"
         
-        echo "2. 正在执行 Python 补丁脚本..."
-        python3 "${{ github.workspace }}/ath11k_revert_fix_5.4.py" --source-dir "$MACDIR"
+#        echo "2. 正在执行 Python 补丁脚本..."
+#        python3 "${{ github.workspace }}/ath11k_revert_fix_5.4.py" --source-dir "$MACDIR"
 
 
         
-        echo "3. 正在强制更新文件时间戳（逼迫编译器重新编译）..."
-        find "$MACDIR" -name "*.c" -exec touch {} \;
-        find "$MACDIR" -name "*.h" -exec touch {} \;
+#        echo "3. 正在强制更新文件时间戳（逼迫编译器重新编译）..."
+#        find "$MACDIR" -name "*.c" -exec touch {} \;
+#        find "$MACDIR" -name "*.h" -exec touch {} \;
         
-        echo "✅ 补丁注入完毕，直接进入编译流程！"
-        echo "=================================================="
+#        echo "✅ 补丁注入完毕，直接进入编译流程！"
+#        echo "=================================================="
 
     - name: Compile the firmware
       id: compile
