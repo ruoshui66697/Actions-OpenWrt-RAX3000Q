@@ -219,6 +219,15 @@ jobs:
 #        echo "✅ 补丁注入完毕，直接进入编译流程！"
 #        echo "=================================================="
 
+    - name: Apply Plan A (Disable WNM in wpa_supplicant)
+      run: |
+        echo "=================================================="
+        echo "正在执行 fix_wnm_off.py 关闭 WNM，避免 GTK rekey 断线..."
+        # ${{ github.workspace }} 是仓库根目录，openwrt 是源码目录
+        python3 "${{ github.workspace }}/fix_wnm_off.py" "${{ github.workspace }}/openwrt"
+        echo "✅ WNM 关闭脚本执行完毕，准备编译！"
+        echo "=================================================="
+
     - name: Compile the firmware
       id: compile
       run: |
