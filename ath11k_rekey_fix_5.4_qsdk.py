@@ -120,20 +120,7 @@ def fix_mac_c(sd):
             "\t/* Allow group key clearing only in AP mode when no stations are associated. */\n"
             "\tis_ap_with_no_sta = (vif->type == NL80211_IFTYPE_AP &&\n"
             "\t\t     !arvif->num_stations);\n"
-
-
-            # 👇 新增：拦截 STA 模式下的组密钥（GTK）更新，假动作骗过上层
-            "\n"
-            "\t/* 👇 拦截 STA 模式下的组密钥（GTK）更新，绝不下发 WMI 给底层固件 */\n"
-            "\tif (vif->type == NL80211_IFTYPE_STATION && !(flags & WMI_KEY_PAIRWISE) && cmd == SET_KEY) {\n"
-            "\t\tath11k_warn(ar->ab, \"Intercepted STA GTK rekey for peer %pM, return fake success\\n\", peer_addr);\n"
-            "\t\tret = 0;\n"
-            "\t\tgoto exit;\n"
-            "\t}\n"
-            "\n"
-            # 👆 新增结束
-
-            
+           
             "\tif ((flags & WMI_KEY_PAIRWISE) || cmd == SET_KEY || is_ap_with_no_sta) {\n"
             "\t\tret = ath11k_install_key(arvif, key, cmd, peer_addr, flags);\n"
             "\t\tif (ret) {\n"
