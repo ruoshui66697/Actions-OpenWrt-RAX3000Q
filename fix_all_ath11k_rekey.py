@@ -11,7 +11,6 @@ fix_all_ath11k_rekey.py
 import os
 import sys
 import argparse
-import glob
 import re
 
 def read_file(path):
@@ -27,68 +26,52 @@ def write_file(path, content):
 # ==========================================
 def patch_mac80211_rx(sd):
     print("\n[1/3] 正在修补 mac80211/rx.c (放宽 VHT MCS 校验)...")
-    # 匹配 backports 目录
-    paths = glob.glob(os.path.join(sd, "backports-*/net/mac80211/rx.c"))
-    if not paths:
-        print("[ERROR] 找不到 net/mac80211/rx.c，请检查路径。")
+    path = os.path.join(sd, "net/mac80211/rx.c")
+    
+    if not os.path.exists(path):
+        print(f"[ERROR] 找不到 {path}，请检查路径。")
         return False
     
-    path = paths[0]
     c = read_file(path)
-    
     old_str = "status->rate_idx > 9"
     new_str = "status->rate_idx > 11"
     
-    # 检查是否已经改过
     if old_str not in c and new_str in c:
         print("[OK] rx.c 已经应用过放宽校验。")
         return True
         
     if old_str in c:
-        c = c.replace(old_str, new_str, 1) # 只替换第一处匹配
+        c = c.replace(old_str, new_str, 1)
         write_file(path, c)
         print("[OK] rx.c: 已将 rate_idx 上限从 9 放宽至 11。")
         return True
     else:
         print("[WARN] rx.c: 未找到目标字符串 'status->rate_idx > 9'，可能源码已变更。")
-        return True # 不阻断编译，但提示警告
+        return True
 
 # ==========================================
 # 补丁 2: ath11k dp_rx.c 补充内存屏障
 # ==========================================
 def patch_ath11k_dp_rx(sd):
     print("\n[2/3] 正在修补 ath11k/dp_rx.c (补充内存屏障)...")
-    paths = glob.glob(os.path.join(sd, "backports-*/drivers/net/wireless/ath/ath11k/dp_rx.c"))
-    if not paths:
-        print("[ERROR] 找不到 ath11k/dp_rx.c，请检查路径。")
+    path = os.path.join(sd, "drivers/net/wireless/ath/ath11k/dp_rx.c")
+    
+    if not os.path.exists(path):
+        print(f"[ERROR] 找不到 {path}，请检查路径。")
         return False
         
-    path = paths[0]
     c = read_file(path)
-    
-    # 核心目标是寻找读取 rx_desc 的地方并加入 dma_rmb()
-    # 通常在 ath11k_dp_process_rx 或 ath11k_dp_rx_process_msdu 里
-    # 锚点参考: 
-    # rx_desc = ath11k_hal_srng_dst_get_next_entry(ab, srng);
-    # if (!rx_desc)
-    #     break;
-    # dma_rmb();  <-- 我们插在这里
-    
     marker = "rx_desc = ath11k_hal_srng_dst_get_next_entry(ab, srng);"
     
-    # 防止重复打补丁
     if "PATCH_ATH11K_MEM_BARRIER" in c:
         print("[OK] dp_rx.c 已经应用过内存屏障补丁。")
         return True
         
     if marker in c:
-        # 查找该行后的 } 或换行，插入我们的屏障
-        # 为了鲁棒性，我们直接在获取 desc 之后插入
         patch_code = """
     /* PATCH_ATH11K_MEM_BARRIER: 解决 AArch64 架构下的 RX 描述符数据竞争 */
     dma_rmb();
 """
-        # 简单粗暴的替换：在获取 entry 之后紧跟着补上
         c = c.replace(marker, marker + "\n" + patch_code, 1)
         write_file(path, c)
         print("[OK] dp_rx.c: 已插入 dma_rmb() 内存屏障。")
