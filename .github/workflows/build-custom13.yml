@@ -249,6 +249,20 @@ jobs:
  #       echo "✅ 补丁注入完毕，直接进入编译流程！"
  #       echo "=================================================="
 
+    - name: Force Fix 992 (Python)
+      run: |
+        cd openwrt
+        echo "=== 正在解压源码 ==="
+        make package/kernel/mac80211/prepare V=s
+        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+        if [ -z "$MACDIR" ]; then
+            echo "❌ 找不到源码目录"
+            exit 1
+        fi
+        echo "=== 正在执行精简版 Python 脚本 ==="
+        python3 "${{ github.workspace }}/fix_992_only.py" --source-dir "$MACDIR"
+        echo "✅ 992 修改完成，准备编译！"
+
     - name: Download package
       id: package
       run: |
