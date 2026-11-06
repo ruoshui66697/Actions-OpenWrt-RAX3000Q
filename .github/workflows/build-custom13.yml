@@ -198,6 +198,23 @@ jobs:
           echo "ath-kernel 包已成功生成！"
         fi
 
+    - name: Dry Run Patch Test
+      run: |
+        cd openwrt
+        echo "=== 正在解压 mac80211 源码用于测试 ==="
+        make package/kernel/mac80211/prepare V=s
+        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+        
+        echo "=== 正在预演测试补丁 (Dry Run) ==="
+        cd "$MACDIR"
+        # -p1 表示忽略第一级目录，--dry-run 表示只测试不修改文件
+        # 如果有报错，这里会直接返回非 0 导致 Actions 红叉中断
+        patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/990-mac80211-relax-mcs.patch
+        patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/991-ath11k-add-barrier.patch
+        patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/992-ath11k-skip-disable-key.patch
+        
+        echo "=== 所有补丁预演成功！ ==="
+
     - name: Apply Plan A (Disable WNM in wpa_supplicant)
       run: |
         echo "=================================================="
