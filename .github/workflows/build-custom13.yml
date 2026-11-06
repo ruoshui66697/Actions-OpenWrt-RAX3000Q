@@ -41,6 +41,17 @@ jobs:
       run: |
         dpkg-query -Wf '${Installed-Size}\t${Package}\n' | sort -n | tail -n 100
         df -h
+
+        # =========================================================================
+        # 👇👇👇 【优化修改】：替换为阿里云镜像源，解决 GitHub 下载依赖卡死超时的问题 👇👇👇
+        # 作用：仅替换域名，保留 jammy 版本代号，绝对安全，不会产生 404。
+        # 回退方法：删除这三行 sudo sed 即可。
+        # =========================================================================
+        sudo sed -i 's/azure.archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+        sudo sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+        sudo sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+        # =========================================================================
+
         echo "Removing large packages"
         sudo apt-get remove -y '^dotnet-.*'
         sudo apt-get remove -y '^llvm-.*'
