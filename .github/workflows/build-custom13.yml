@@ -39,30 +39,25 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        dpkg-query -Wf '${Installed-Size}\t${Package}\n' | sort -n | tail -n 100
         df -h
 
         # =========================================================================
-        # 👇👇👇 【修改点 1/2】：替换为阿里云镜像源，解决 GitHub 下载依赖卡死超时的问题 👇👇👇
-        # 作用：仅替换域名，保留 jammy 版本代号，绝对安全，不会产生 404。
-        # 回退方法：删除这三行 sudo sed 即可。
+        # 【修改点 1/2】：先换阿里云镜像源（后面 apt 都用这个）
         # =========================================================================
         sudo sed -i 's/azure.archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
         sudo sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
         sudo sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
-        # =========================================================================
 
-        echo "Removing large packages"
-        sudo apt-get remove -y '^dotnet-.*'
-        sudo apt-get remove -y '^llvm-.*'
-        sudo apt-get remove -y 'php.*'
-        sudo apt-get remove -y '^mongodb-.*'
-        sudo apt-get remove -y '^mysql-.*'
-        sudo apt-get remove -y azure-cli google-cloud-sdk google-chrome-stable firefox powershell mono-devel libgl1-mesa-dri
-        sudo apt-get autoremove -y
+        # =========================================================================
+        # 【关键修改】：用 purge + 通配符暴力清 Mono，避免 apt 逐个算依赖卡死
+        # =========================================================================
+        echo "Purging bloated packages (mono, dotnet, etc.)"
+        sudo apt-get purge -y azure-cli google-cloud-sdk google-chrome-stable firefox powershell \
+          mono-devel 'libmono-*' '^dotnet-.*' '^llvm-.*' 'php.*' '^mongodb-.*' '^mysql-.*' libgl1-mesa-dri
+        sudo apt-get autoremove -y --purge
         sudo apt-get clean
         df -h
-        
+
         echo "Removing large directories"
         sudo rm -rf /usr/share/dotnet/
         sudo rm -rf /usr/local/graalvm/
@@ -73,28 +68,20 @@ jobs:
         sudo rm -rf /usr/local/lib/node_modules
         df -h
 
-        sudo echo 'debconf debconf/frontend select Noninteractive' | sudo debconf-set-selections
-        sudo echo 'set man-db/auto-update false' | sudo debconf-communicate >/dev/null
-        
         sudo -E apt-get -qq update
 
         # =========================================================================
-        # 👇👇👇 【修改点 2/2】：精简依赖列表，并加入 --no-install-recommends 👇👇👇
-        # 作用：去掉了 asciidoc、xmlto、texinfo 等生成 PDF 和帮助文档的重型包。
-        # 这些包会连带下载几百兆的 texlive 字体库，导致 Actions 虚拟机 CPU 卡死。
-        # 编译 OpenWrt 固件是纯 C 语言构建，完全不需要排版和生成 PDF 工具。
-        # 回退方法：如果想恢复原样，把下面这段换回你原来的超长列表即可。
+        # 【修改点 2/2】：安装精简编译依赖（去掉 texlive 等重型包）
         # =========================================================================
-        sudo apt install -y --no-install-recommends \
+        sudo apt-get install -y --no-install-recommends \
           ack antlr3 autoconf automake autopoint binutils bison build-essential \
           bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext \
           gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 \
           libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
           libncurses5-dev libncursesw5 libncursesw5-dev libpython3-dev libreadline-dev libssl-dev \
           libtool lld llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf \
-          python2.7 python3 python3-pip python3-ply python3-pyelftools qemu-utils re2c rsync scons \
+          python3 python3-pip python3-ply python3-pyelftools qemu-utils re2c rsync scons \
           squashfs-tools subversion swig uglifyjs upx-ucl unzip vim wget xxd zlib1g-dev
-        # =========================================================================
 
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
