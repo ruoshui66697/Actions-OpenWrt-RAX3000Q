@@ -258,6 +258,46 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
+    - name: Extract Context
+      run: |
+        cd openwrt
+        echo "=== 正在解压源码 ==="
+        make package/kernel/mac80211/prepare V=s
+        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+        
+        if [ -z "$MACDIR" ]; then
+            echo "❌ 找不到源码目录"
+            exit 1
+        fi
+        cd "$MACDIR"
+        
+        echo "================ rx.c 上下文 (MCS) ================"
+        grep -n -A 5 -B 5 "status->rate_idx >" net/mac80211/rx.c || echo "❌ 找不到"
+        
+        echo "================ dp_rx.c 上下文 (屏障) ================"
+        grep -n -A 5 -B 5 "rx_desc = ath11k_hal_srng_dst_get_next_entry" drivers/net/wireless/ath/ath11k/dp_rx.c || echo "❌ 找不到"
+        
+        echo "================ core.h 上下文 (结构体) ================"
+        grep -n -A 10 -B 5 "struct ath11k_vif {" drivers/net/wireless/ath/ath11k/core.h || echo "❌ 找不到"
+        
+        echo "================ mac.c 上下文 (函数名) ================"
+        grep -n -A 5 -B 5 "ath11k_mac_op_set_key(struct" drivers/net/wireless/ath/ath11k/mac.c || echo "❌ 找不到"
+        
+        echo "================ mac.c 上下文 (核心逻辑) ================"
+        grep -n -A 15 -B 5 "ath11k_install_key(arvif, key, cmd, peer_addr, flags);" drivers/net/wireless/ath/ath11k/mac.c || echo "❌ 找不到"
+
+        echo "================ mac.c 上下文 (计数器++ ) ================"
+        grep -n -A 5 -B 5 "ar->num_stations++;" drivers/net/wireless/ath/ath11k/mac.c || echo "❌ 找不到"
+
+        echo "================ mac.c 上下文 (计数器-- ) ================"
+        grep -n -A 5 -B 5 "ar->num_stations--;" drivers/net/wireless/ath/ath11k/mac.c || echo "❌ 找不到"
+
+        echo "================ mac.c 上下文 (插入点 rx_stats) ================"
+        grep -n -A 5 -B 5 "arsta->rx_stats = kzalloc" drivers/net/wireless/ath/ath11k/mac.c || echo "❌ 找不到"
+        
+        echo "✅ 提取完毕！"
+        exit 1 # 故意报错中断，省得它继续去编译浪费时间
+
     - name: Compile the firmware
       id: compile
       run: |
