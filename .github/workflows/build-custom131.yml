@@ -198,22 +198,22 @@ jobs:
           echo "ath-kernel 包已成功生成！"
         fi
 
- #   - name: Dry Run Patch Test
- #     run: |
- #       cd openwrt
- #       echo "=== 正在解压 mac80211 源码用于测试 ==="
- #       make package/kernel/mac80211/prepare V=s
- #       MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+    - name: Dry Run Patch Test
+      run: |
+        cd openwrt
+        echo "=== 正在解压 mac80211 源码用于测试 ==="
+        make package/kernel/mac80211/prepare V=s
+        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
         
-  #      echo "=== 正在预演测试补丁 (Dry Run) ==="
-  #      cd "$MACDIR"
+        echo "=== 正在预演测试补丁 (Dry Run) ==="
+        cd "$MACDIR"
         # -p1 表示忽略第一级目录，--dry-run 表示只测试不修改文件
         # 如果有报错，这里会直接返回非 0 导致 Actions 红叉中断
-  #      patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/990-mac80211-relax-mcs.patch
-  #      patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/991-ath11k-add-barrier.patch
-  #      patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/992-ath11k-skip-disable-key.patch
+        patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/990-mac80211-relax-mcs.patch
+        patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/991-ath11k-add-barrier.patch
+        patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/992-ath11k-skip-disable-key.patch
         
-  #      echo "=== 所有补丁预演成功！ ==="
+        echo "=== 所有补丁预演成功！ ==="
 
     - name: Apply Plan A (Disable WNM in wpa_supplicant)
       run: |
@@ -260,45 +260,45 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
-    - name: Get Real Context
-      run: |
-        cd openwrt
-        echo "=== 正在执行 prepare (应用系统补丁 + 990 + 991) ==="
+ #   - name: Get Real Context
+ #     run: |
+ #       cd openwrt
+ #       echo "=== 正在执行 prepare (应用系统补丁 + 990 + 991) ==="
         # 这一步可能要几分钟，如果卡死了，直接取消重跑，直到它跑完
-        make package/kernel/mac80211/prepare V=s || true
+ #       make package/kernel/mac80211/prepare V=s || true
         
-        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+ #       MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
         
-        if [ -z "$MACDIR" ]; then
-            echo "❌ 找不到源码目录，说明 make prepare 连解压都没完成。"
-            exit 1
-        fi
-        echo "✅ 找到源码目录: $MACDIR"
-        cd "$MACDIR"
+ #       if [ -z "$MACDIR" ]; then
+ #           echo "❌ 找不到源码目录，说明 make prepare 连解压都没完成。"
+ #           exit 1
+ #       fi
+ #       echo "✅ 找到源码目录: $MACDIR"
+ #       cd "$MACDIR"
         
-        echo "================ 1. core.h: 需要插字段的结构体 ================"
+ #       echo "================ 1. core.h: 需要插字段的结构体 ================"
         # 打印 ath11k_vif 结构体前后 30 行
-        grep -n -A 30 "struct ath11k_vif {" drivers/net/wireless/ath/ath11k/core.h || true
+ #       grep -n -A 30 "struct ath11k_vif {" drivers/net/wireless/ath/ath11k/core.h || true
         
-        echo "================ 2. mac.c: set_key 函数开头 ================"
+ #       echo "================ 2. mac.c: set_key 函数开头 ================"
         # 打印函数签名及前 20 行
-        grep -n -A 20 -B 5 "static int ath11k_mac_op_set_key" drivers/net/wireless/ath/ath11k/mac.c || true
+ #       grep -n -A 20 -B 5 "static int ath11k_mac_op_set_key" drivers/net/wireless/ath/ath11k/mac.c || true
 
-        echo "================ 3. mac.c: 要替换的 install_key 核心逻辑 ================"
+ #       echo "================ 3. mac.c: 要替换的 install_key 核心逻辑 ================"
         # 打印具体要替换的那一段
-        grep -n -A 20 -B 10 "ret = ath11k_install_key(arvif, key, cmd, peer_addr, flags);" drivers/net/wireless/ath/ath11k/mac.c || true
+ #       grep -n -A 20 -B 10 "ret = ath11k_install_key(arvif, key, cmd, peer_addr, flags);" drivers/net/wireless/ath/ath11k/mac.c || true
 
-        echo "================ 4. mac.c: num_stations 计数器 ================"
+ #       echo "================ 4. mac.c: num_stations 计数器 ================"
         # 打印加一和减一的地方
-        grep -n -A 10 -B 5 "ar->num_stations++;" drivers/net/wireless/ath/ath11k/mac.c || true
-        grep -n -A 10 -B 5 "ar->num_stations--;" drivers/net/wireless/ath/ath11k/mac.c || true
+ #       grep -n -A 10 -B 5 "ar->num_stations++;" drivers/net/wireless/ath/ath11k/mac.c || true
+ #       grep -n -A 10 -B 5 "ar->num_stations--;" drivers/net/wireless/ath/ath11k/mac.c || true
 
-        echo "================ 5. mac.c: station_add 插入点 ================"
+ #       echo "================ 5. mac.c: station_add 插入点 ================"
         # 打印分配 rx_stats 的上下文
-        grep -n -A 15 -B 15 "arsta->rx_stats = kzalloc" drivers/net/wireless/ath/ath11k/mac.c || true
+ #       grep -n -A 15 -B 15 "arsta->rx_stats = kzalloc" drivers/net/wireless/ath/ath11k/mac.c || true
 
-        echo "✅ 提取完毕，中断流水线！"
-        exit 1
+ #       echo "✅ 提取完毕，中断流水线！"
+ #       exit 1
 
     - name: Compile the firmware
       id: compile
