@@ -1,0 +1,374 @@
+name: Build Custom OpenWrt (DTS Fixed1.3)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ssh:
+        description: 'SSH connection to Actions'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  REPO_URL: https://github.com/ruoshui66697/immortalwrt-ipq50xx
+  REPO_BRANCH: openwrt-21.02
+  FEEDS_CONF: feeds.conf.default
+  CONFIG_FILE: .config
+  DIY_P1_SH: diy-part1.sh
+  DIY_P2_SH: diy-13.sh      # 👈 修改：指向 1.3 的 diy 脚本
+  DIY_P3_SH: diy-03.sh      # 👈 修改：指向 1.3 的 DTS 替换脚本
+  UPLOAD_BIN_DIR: true
+  UPLOAD_FIRMWARE: true
+  UPLOAD_RELEASE: true
+  TZ: Asia/Shanghai
+
+permissions:
+  actions: write
+  
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      actions: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@main
+
+    - name: Initialization environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+        APT_GET_TIMEOUT: '60'
+      run: |
+        df -h
+        
+        # =========================================================================
+        # 【关键】用 purge + 通配符暴力清 Mono/Dotnet 等臃肿包（不逐个算依赖）
+        # =========================================================================
+        echo "=== Purging bloated packages ==="
+        sudo apt-get purge -y --auto-remove \
+          azure-cli google-cloud-sdk google-chrome-stable firefox powershell \
+          'libmono-*' '^dotnet-.*' '^llvm-.*' 'php.*' '^mongodb-.*' '^mysql-.*' \
+          libgl1-mesa-dri mono-devel
+        sudo apt-get autoremove -y --purge
+        sudo apt-get clean
+        df -h
+        
+        echo "=== Removing large directories ==="
+        sudo rm -rf /usr/share/dotnet/
+        sudo rm -rf /usr/local/graalvm/
+        sudo rm -rf /usr/local/.ghcup/
+        sudo rm -rf /usr/local/share/powershell
+        sudo rm -rf /usr/local/share/chromium
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /usr/local/lib/node_modules
+        df -h
+        
+        # =========================================================================
+        # 使用 GitHub 默认镜像源（内网速度最快，不需要手动换阿里云）
+        # =========================================================================
+        echo "=== Updating package lists ==="
+        sudo apt-get update -qq -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+        
+        # =========================================================================
+        # 安装编译依赖（精简版：去掉 python2.7/vim/msmtp 等不需要的包）
+        # =========================================================================
+        echo "=== Installing build dependencies ==="
+        sudo apt-get install -y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+          ack antlr3 autoconf automake autopoint binutils bison build-essential \
+          bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext \
+          gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 \
+          libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
+          libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev \
+          libtool lld llvm lrzsz mkisofs nano ninja-build p7zip p7zip-full patch pkgconf \
+          python3 python3-pip python3-ply python3-pyelftools qemu-utils re2c rsync scons \
+          squashfs-tools subversion swig uglifyjs upx-ucl unzip wget xxd zlib1g-dev
+        
+        # sudo apt-get autoremove -y --purge
+        sudo apt-get clean
+        sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
+        
+        echo "=== Environment ready ==="
+        df -h
+
+    - name: Clone source code
+      working-directory: /workdir
+      run: |
+        df -hT $PWD
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+
+    - name: Enable build ccache
+      uses: klever1988/cachewrtbuild@main
+      with:
+        ccache: 'true'
+        mixkey: 'immortalwrt21-cortexa7-vfpv4-19' # 👈 修改：增加 16 避免与 1.2 缓存串用
+        prefix: ${{ github.workspace }}/openwrt
+
+    - name: Load custom feeds
+      run: |
+        [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
+        chmod +x $DIY_P1_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P1_SH
+   
+    - name: Update feeds
+      run: cd openwrt && ./scripts/feeds update -a
+
+    - name: Fix golang version
+      run: |
+        cd openwrt
+        rm -rf feeds/packages/lang/golang
+        git clone https://github.com/kenzok8/golang -b 1.25 feeds/packages/lang/golang
+
+    - name: Fix nodejs version
+      run: |
+        cd openwrt
+        rm -rf feeds/packages/lang/node
+        git clone https://github.com/sbwml/feeds_packages_lang_node-prebuilt -b packages-24.10 feeds/packages/lang/node
+
+    - name: Install feeds
+      run: cd openwrt && ./scripts/feeds install -a
+
+    - name: Upgrade some network software version
+      run: |
+        cd openwrt
+        wget "https://www.dropbox.com/scl/fi/uccikbibj772c4sekzbk7/luci-app-turboacc.zip?rlkey=yzhkk0lfzhrthn8hbl1qt8k5j&st=31820445&dl=1" -O luci-app-turboacc.zip
+        rm -rf feeds/luci/applications/luci-app-turboacc
+        unzip luci-app-turboacc.zip -d feeds/luci/applications/
+        rm -rf luci-app-turboacc.zip
+
+    - name: Load custom configuration
+      run: |
+        [ -e files ] && mv files openwrt/files
+
+        # 👇 新增：赋予自定义脚本执行权限
+        if [ -d "openwrt/files/etc/init.d" ]; then
+            chmod +x openwrt/files/etc/init.d/*
+        fi
+        
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+        chmod +x $DIY_P2_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P2_SH
+
+    # 👇 核心新增：应用自定义的 DTS 修复 GPIO 26 报错 (已指向 1.3G 专属脚本)
+    - name: Apply Custom DTS
+      run: |
+        chmod +x $DIY_P3_SH
+        $GITHUB_WORKSPACE/$DIY_P3_SH
+
+    - name: SSH connection to Actions
+      uses: owenthereal/action-upterm@v1
+      if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
+
+    - name: Fix some download failed first
+      run: |
+        cd openwrt
+        mkdir -p dl
+        
+        # 1. 下载原本就在 Dropbox 里的 backports 和 linux 包
+        wget "https://www.dropbox.com/scl/fi/9ts30p2csnlb9imaf8k68/backports-20210222-5.4-qsdk-11.5.0.5.tar.xz?rlkey=sntbyfjgg86gu2uoocgb9ggp1&st=7w81hl56&dl=1" -O dl/backports-20210222-5.4-qsdk-11.5.0.5.tar.xz
+        wget "https://www.dropbox.com/scl/fi/gu7ge6jmefn72ttuop1zs/linux-5.4-qsdk-11.5.0.5.tar.xz?rlkey=tdpq0ye35x290frbh7i8uqrm8&st=jjvegqrr&dl=1" -O dl/linux-5.4-qsdk-11.5.0.5.tar.xz
+        
+        # 2. 处理缺失的 ath-kernel 包（带容错）
+        if [ ! -f "dl/ath-kernel-2021-02-22-b157d227.tar.xz" ]; then
+          echo "尝试从官方镜像下载原版 ath-kernel 包..."
+          # -T 10 代表超时10秒，加了 || true 防止下载失败导致整个流程中断
+          wget -T 10 -t 1 "https://mirror2.immortalwrt.org/sources/ath-kernel-2021-02-22-b157d227.tar.xz" -O dl/ath-kernel-2021-02-22-b157d227.tar.xz || true
+        fi
+        
+        # 3. 如果原链接下载失败（文件不存在或大小为0），则改用 Git 拉取并打包
+        if [ ! -s "dl/ath-kernel-2021-02-22-b157d227.tar.xz" ]; then
+          echo "原链接失效，正在从 Git 仓库拉取源码并打包..."
+          
+          git clone --depth 1 https://github.com/openwrt/ath.git dl/ath-kernel-temp || \
+          git clone --depth 1 https://git.codelinaro.org/clo/qsdk/kvalo/ath.git dl/ath-kernel-temp
+          
+          cd dl/ath-kernel-temp
+          git fetch --depth 1 origin b157d227636eb4fd9854218c4802e8dab2eadf1b
+          git checkout b157d227636eb4fd9854218c4802e8dab2eadf1b
+          cd ..
+          
+          tar -cJf ath-kernel-2021-02-22-b157d227.tar.xz -C ath-kernel-temp .
+          rm -rf ath-kernel-temp
+          
+          echo "ath-kernel 包已成功生成！"
+        fi
+
+ #   - name: Dry Run Patch Test
+ #     run: |
+ #       cd openwrt
+ #       echo "=== 正在解压 mac80211 源码用于测试 ==="
+ #       make package/kernel/mac80211/prepare V=s
+ #       MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+        
+  #      echo "=== 正在预演测试补丁 (Dry Run) ==="
+  #      cd "$MACDIR"
+        # -p1 表示忽略第一级目录，--dry-run 表示只测试不修改文件
+        # 如果有报错，这里会直接返回非 0 导致 Actions 红叉中断
+  #      patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/990-mac80211-relax-mcs.patch
+  #      patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/991-ath11k-add-barrier.patch
+  #      patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/992-ath11k-skip-disable-key.patch
+        
+  #      echo "=== 所有补丁预演成功！ ==="
+
+    - name: Apply Plan A (Disable WNM in wpa_supplicant)
+      run: |
+        echo "=================================================="
+        echo "正在执行 fix_wnm_off.py 关闭 WNM，避免 GTK rekey 断线..."
+        # ${{ github.workspace }} 是仓库根目录，openwrt 是源码目录
+        python3 "${{ github.workspace }}/fix_wnm_off.py" "${{ github.workspace }}/openwrt"
+        echo "✅ WNM 关闭脚本执行完毕，准备编译！"
+        echo "=================================================="
+
+ #   - name: Apply Plan B (Patch ath11k & mac80211 sources)
+ #     run: |
+ #       cd openwrt
+ #       echo "=================================================="
+ #       echo "1. 正在准备 mac80211 源码..."
+ #       make package/kernel/mac80211/prepare V=s
+        
+ #       MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+        
+ #      if [ -z "$MACDIR" ]; then
+ #           echo "❌ ERROR: 找不到源码目录，准备失败！"
+ #           exit 1
+ #       fi
+ #      echo "✅ 找到源码目录: $MACDIR"
+ #       
+ #       echo "2. 正在执行 Python 补丁脚本..."
+ #       python3 "${{ github.workspace }}/fix_all_ath11k_rekey.py" --source-dir "$MACDIR"
+
+ #       echo "3. 正在强制更新文件时间戳（逼迫编译器重新编译）..."
+ #       find "$MACDIR" -name "*.c" -exec touch {} \;
+ #       find "$MACDIR" -name "*.h" -exec touch {} \;
+        
+ #       echo "✅ 补丁注入完毕，直接进入编译流程！"
+ #       echo "=================================================="
+
+# =========================================================================
+# 👇👇👇 以下全部被注释掉，为了只跑 Get Real Context 抓取代码，不卡死编译 👇👇👇
+# =========================================================================
+#     - name: Download package
+#       id: package
+#       run: |
+#         cd openwrt
+#         make defconfig
+#         make download -j8
+#         find dl -size -1024c -exec ls -l {} \;
+#         find dl -size -1024c -exec rm -f {} \;
+
+    - name: Get Real Context
+      run: |
+        cd openwrt
+        echo "=== 正在执行 prepare (应用系统补丁 + 990 + 991) ==="
+        # 这一步可能要几分钟，如果卡死了，直接取消重跑，直到它跑完
+        make package/kernel/mac80211/prepare V=s || true
+        
+        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+        
+        if [ -z "$MACDIR" ]; then
+            echo "❌ 找不到源码目录，说明 make prepare 连解压都没完成。"
+            exit 1
+        fi
+        echo "✅ 找到源码目录: $MACDIR"
+        cd "$MACDIR"
+        
+        echo "================ 1. core.h: 需要插字段的结构体 ================"
+        # 打印 ath11k_vif 结构体前后 30 行
+        grep -n -A 30 "struct ath11k_vif {" drivers/net/wireless/ath/ath11k/core.h || true
+        
+        echo "================ 2. mac.c: set_key 函数开头 ================"
+        # 打印函数签名及前 20 行
+        grep -n -A 20 -B 5 "static int ath11k_mac_op_set_key" drivers/net/wireless/ath/ath11k/mac.c || true
+
+        echo "================ 3. mac.c: 要替换的 install_key 核心逻辑 ================"
+        # 打印具体要替换的那一段
+        grep -n -A 20 -B 10 "ret = ath11k_install_key(arvif, key, cmd, peer_addr, flags);" drivers/net/wireless/ath/ath11k/mac.c || true
+
+        echo "================ 4. mac.c: num_stations 计数器 ================"
+        # 打印加一和减一的地方
+        grep -n -A 10 -B 5 "ar->num_stations++;" drivers/net/wireless/ath/ath11k/mac.c || true
+        grep -n -A 10 -B 5 "ar->num_stations--;" drivers/net/wireless/ath/ath11k/mac.c || true
+
+        echo "================ 5. mac.c: station_add 插入点 ================"
+        # 打印分配 rx_stats 的上下文
+        grep -n -A 15 -B 15 "arsta->rx_stats = kzalloc" drivers/net/wireless/ath/ath11k/mac.c || true
+
+        echo "✅ 提取完毕，中断流水线！"
+        exit 1
+
+#     - name: Compile the firmware
+#       id: compile
+#       run: |
+#         cd openwrt
+#         echo -e "$(nproc) thread compile"
+#         make -j$(nproc) || make -j1 || make -j1 V=s
+#         echo "status=success" >> $GITHUB_OUTPUT
+#         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+#         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+#         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        
+#     - name: Check space usage
+#       if: (!cancelled())
+#       run: df -hT
+
+#     - name: Upload bin directory
+#       uses: actions/upload-artifact@main
+#       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
+#       with:
+#         name: OpenWrt_bin_OC13_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+#         path: openwrt/bin
+
+#     - name: Organize files
+#       id: organize
+#       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+#       run: |
+#         cd openwrt/bin/targets/*/*
+#         rm -rf packages
+#         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+#         echo "status=success" >> $GITHUB_OUTPUT
+
+#     - name: Upload firmware directory
+#       uses: actions/upload-artifact@main
+#       if: steps.organize.outputs.status == 'success' && !cancelled()
+#       with:
+#         name: OpenWrt_firmware_OC13_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+#         path: ${{ env.FIRMWARE }}
+
+#     - name: Generate release tag
+#       id: tag
+#       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+#       run: |
+#         echo "release_tag=RAX3000Q-OC13-$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+#         touch release.txt
+#         echo "status=success" >> $GITHUB_OUTPUT
+
+#     - name: Upload firmware to release
+#       uses: softprops/action-gh-release@v1
+#       if: steps.tag.outputs.status == 'success' && !cancelled()
+#       env:
+#         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       with:
+#         tag_name: ${{ steps.tag.outputs.release_tag }}
+#         body_path: release.txt
+#         files: ${{ env.FIRMWARE }}/*
+
+#     - name: Delete workflow runs
+#       uses: Mattraks/delete-workflow-runs@main
+#       with:
+#         retain_days: 1
+#         keep_minimum_runs: 3
+
+#     - name: Remove old Releases
+#       uses: dev-drprasad/delete-older-releases@v0.2.1
+#       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+#       with:
+#         keep_latest: 5
+#         delete_tags: true
+#       env:
+#         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+# =========================================================================
