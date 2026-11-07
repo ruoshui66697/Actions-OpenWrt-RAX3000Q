@@ -201,19 +201,22 @@ jobs:
     - name: Dry Run Patch Test
       run: |
         cd openwrt
-        echo "=== 正在解压 mac80211 源码用于测试 ==="
+        echo "=== 1. 强制清理旧的源码缓存，确保从零开始 ==="
+        # 这句极其关键！如果不删，系统会直接用上次的残骸，跳过打补丁
+        rm -rf build_dir/target-arm_cortex-a7+neon-vfpv4_musl_eabi/linux-ipq50xx_arm/backports-20210222-5.4-qsdk-11.5.0.5
+        
+        echo "=== 2. 正在解压并自动打补丁 ==="
+        # 这一步会自动把 990, 991, 992 打进去。如果 992 格式有错，这里会直接报错变红！
         make package/kernel/mac80211/prepare V=s
+        
+        echo "=== 3. 检查 992 补丁是否成功打上 ==="
         MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
-        
-        echo "=== 正在预演测试补丁 (Dry Run) ==="
         cd "$MACDIR"
-        # -p1 表示忽略第一级目录，--dry-run 表示只测试不修改文件
-        # 如果有报错，这里会直接返回非 0 导致 Actions 红叉中断
-        patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/990-mac80211-relax-mcs.patch
-        patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/991-ath11k-add-barrier.patch
-        patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/992-ath11k-skip-disable-key.patch
+        # 直接看源码里有没有咱们加的代码，有就代表补丁完美成功
+        grep -n "ath11k_set_group_keys" drivers/net/wireless/ath/ath11k/mac.c
+        grep -n "reinstall_group_keys" drivers/net/wireless/ath/ath11k/core.h
         
-        echo "=== 所有补丁预演成功！ ==="
+        echo "✅ 预演成功！补丁已全部打入源码，准备进入正式编译！"
 
     - name: Apply Plan A (Disable WNM in wpa_supplicant)
       run: |
