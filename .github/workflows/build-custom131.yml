@@ -198,6 +198,9 @@ jobs:
           echo "ath-kernel 包已成功生成！"
         fi
 
+    - name: Sanitize patch files
+      run: |
+        find openwrt/package/kernel/mac80211/patches -name '*.patch' -exec sed -i 's/\r$//' {} +
     - name: Dry Run Patch Test
       run: |
         cd openwrt
