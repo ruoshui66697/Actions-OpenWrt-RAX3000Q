@@ -198,23 +198,6 @@ jobs:
           echo "ath-kernel 包已成功生成！"
         fi
 
- #   - name: Dry Run Patch Test
- #     run: |
- #       cd openwrt
- #       echo "=== 正在解压 mac80211 源码用于测试 ==="
- #       make package/kernel/mac80211/prepare V=s
- #       MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
-        
-  #      echo "=== 正在预演测试补丁 (Dry Run) ==="
-  #      cd "$MACDIR"
-        # -p1 表示忽略第一级目录，--dry-run 表示只测试不修改文件
-        # 如果有报错，这里会直接返回非 0 导致 Actions 红叉中断
-  #      patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/990-mac80211-relax-mcs.patch
-  #      patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/991-ath11k-add-barrier.patch
-  #      patch -p1 --dry-run < /workdir/openwrt/package/kernel/mac80211/patches/all-ipq50xx/992-ath11k-skip-disable-key.patch
-        
-  #      echo "=== 所有补丁预演成功！ ==="
-
     - name: Apply Plan A (Disable WNM in wpa_supplicant)
       run: |
         echo "=================================================="
@@ -224,33 +207,33 @@ jobs:
         echo "✅ WNM 关闭脚本执行完毕，准备编译！"
         echo "=================================================="
 
- #   - name: Apply Plan B (Patch ath11k & mac80211 sources)
- #     run: |
- #       cd openwrt
- #       echo "=================================================="
- #       echo "1. 正在准备 mac80211 源码..."
- #       make package/kernel/mac80211/prepare V=s
+# =========================================================================
+# 👇👇👇 以下为提取真实源码并打包上传的步骤 👇👇👇
+# =========================================================================
+    - name: Prepare Source for Download
+      run: |
+        cd openwrt
+        echo "=== 正在执行 prepare，让系统打完所有补丁 ==="
+        make package/kernel/mac80211/prepare V=s
         
- #       MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+        if [ -z "$MACDIR" ]; then echo "❌ 找不到源码目录"; exit 1; fi
         
- #      if [ -z "$MACDIR" ]; then
- #           echo "❌ ERROR: 找不到源码目录，准备失败！"
- #           exit 1
- #       fi
- #      echo "✅ 找到源码目录: $MACDIR"
- #       
- #       echo "2. 正在执行 Python 补丁脚本..."
- #       python3 "${{ github.workspace }}/fix_all_ath11k_rekey.py" --source-dir "$MACDIR"
+        echo "=== 正在提取真实的 mac.c 和 core.h ==="
+        mkdir -p /tmp/source_files
+        cp "$MACDIR/drivers/net/wireless/ath/ath11k/mac.c" /tmp/source_files/
+        cp "$MACDIR/drivers/net/wireless/ath/ath11k/core.h" /tmp/source_files/
+        
+        echo "✅ 提取完成，准备打包上传！"
 
- #       echo "3. 正在强制更新文件时间戳（逼迫编译器重新编译）..."
- #       find "$MACDIR" -name "*.c" -exec touch {} \;
- #       find "$MACDIR" -name "*.h" -exec touch {} \;
-        
- #       echo "✅ 补丁注入完毕，直接进入编译流程！"
- #       echo "=================================================="
+    - name: Upload Source Files
+      uses: actions/upload-artifact@main
+      with:
+        name: Source-Files-for-Patch
+        path: /tmp/source_files/*
 
 # =========================================================================
-# 👇👇👇 以下全部被注释掉，为了只跑 Get Real Context 抓取代码，不卡死编译 👇👇👇
+# 👇👇👇 以下为编译步骤，目前保持注释，等拿到源码后再取消注释 👇👇👇
 # =========================================================================
 #     - name: Download package
 #       id: package
@@ -260,36 +243,6 @@ jobs:
 #         make download -j8
 #         find dl -size -1024c -exec ls -l {} \;
 #         find dl -size -1024c -exec rm -f {} \;
-
-    - name: Get Real Context
-      run: |
-        cd openwrt
-        echo "=== 正在执行 prepare ==="
-        make package/kernel/mac80211/prepare V=s || true
-        
-        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
-        if [ -z "$MACDIR" ]; then
-            echo "❌ 找不到源码目录"
-            exit 1
-        fi
-        echo "✅ 找到源码目录: $MACDIR"
-        cd "$MACDIR"
-        
-        echo "================ 2. mac.c: set_key 函数开头 ================"
-        grep -n -A 20 -B 5 "static int ath11k_mac_op_set_key" drivers/net/wireless/ath/ath11k/mac.c || true
-
-        echo "================ 3. mac.c: 要替换的 install_key 核心逻辑 ================"
-        grep -n -A 20 -B 10 "ret = ath11k_install_key(arvif, key, cmd, peer_addr, flags);" drivers/net/wireless/ath/ath11k/mac.c || true
-
-        echo "================ 4. mac.c: num_stations 计数器 ================"
-        grep -n -A 10 -B 5 "ar->num_stations++;" drivers/net/wireless/ath/ath11k/mac.c || true
-        grep -n -A 10 -B 5 "ar->num_stations--;" drivers/net/wireless/ath/ath11k/mac.c || true
-
-        echo "================ 5. mac.c: station_add 插入点 ================"
-        grep -n -A 15 -B 15 "arsta->rx_stats = kzalloc" drivers/net/wireless/ath/ath11k/mac.c || true
-
-        echo "✅ 提取完毕，中断流水线！"
-        exit 1
 
 #     - name: Compile the firmware
 #       id: compile
