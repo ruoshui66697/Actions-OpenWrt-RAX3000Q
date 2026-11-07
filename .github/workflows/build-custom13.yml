@@ -249,19 +249,7 @@ jobs:
  #       echo "✅ 补丁注入完毕，直接进入编译流程！"
  #       echo "=================================================="
 
-    - name: Force Fix 992 (Python)
-      run: |
-        cd openwrt
-        echo "=== 正在解压源码 ==="
-        make package/kernel/mac80211/prepare V=s
-        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
-        if [ -z "$MACDIR" ]; then
-            echo "❌ 找不到源码目录"
-            exit 1
-        fi
-        echo "=== 正在执行精简版 Python 脚本 ==="
-        python3 "${{ github.workspace }}/fix_992_only.py" --source-dir "$MACDIR"
-        echo "✅ 992 修改完成，准备编译！"
+
 
     - name: Download package
       id: package
@@ -272,7 +260,48 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
-
+    - name: Get Source Context (After 990 & 991)
+      run: |
+        cd openwrt
+        echo "=== 正在执行 prepare (应用 990 和 991) ==="
+        # 确保 990 和 991 的 patch 文件已经放在 patches/all-ipq50xx/ 目录下
+        make package/kernel/mac80211/prepare V=s || true
+        
+        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+        
+        if [ -z "$MACDIR" ]; then
+            echo "❌ 彻底找不到源码目录"
+            exit 1
+        fi
+        echo "✅ 找到源码目录: $MACDIR"
+        cd "$MACDIR"
+        
+        echo "================ 1. core.h: 结构体 ath11k_vif ================"
+        # 提取结构体定义及附近的行
+        grep -n -A 20 -B 5 "struct ath11k_vif {" drivers/net/wireless/ath/ath11k/core.h || true
+        
+        echo "================ 2. mac.c: set_key 函数前置部分 ================"
+        # 提取函数签名和前面的上下文
+        grep -n -A 10 -B 5 "static int ath11k_mac_op_set_key(struct" drivers/net/wireless/ath/ath11k/mac.c || true
+        
+        echo "================ 3. mac.c: 密钥安装核心逻辑 ================"
+        # 提取要替换的 install_key 逻辑上下文
+        grep -n -A 20 -B 10 "ret = ath11k_install_key(arvif, key, cmd, peer_addr, flags);" drivers/net/wireless/ath/ath11k/mac.c || true
+        
+        echo "================ 4. mac.c: 计数器 ++ 处 ================"
+        # 提取站点数量增加的地方
+        grep -n -A 5 -B 5 "ar->num_stations++;" drivers/net/wireless/ath/ath11k/mac.c || true
+        
+        echo "================ 5. mac.c: 计数器 -- 处 ================"
+        # 提取站点数量减少的地方
+        grep -n -A 5 -B 5 "ar->num_stations--;" drivers/net/wireless/ath/ath11k/mac.c || true
+        
+        echo "================ 6. mac.c: station_add 插入点 ================"
+        # 提取分配 rx_stats 的地方，这是我们要插入重装逻辑的位置
+        grep -n -A 10 -B 10 "arsta->rx_stats = kzalloc" drivers/net/wireless/ath/ath11k/mac.c || true
+        
+        echo "✅ 提取完毕！"
+        exit 1 # 故意中断，获取日志后去掉这一步
 
     - name: Compile the firmware
       id: compile
