@@ -84,19 +84,33 @@ echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
 # 回退：删除这三行即可
 # ============================================================
 # ====================================================
-# 关闭 WNM (11v) 并锁定上级 AP 的 BSSID
+# 注入到 rc.local 的开机检查脚本
 # ====================================================
-echo "正在强制关闭 WNM ..."
+echo "正在注入 STA WNM 屏蔽脚本到 rc.local..."
 
-# 这里的 [1] 代表 wireless 配置里的第二个接口（也就是你的 wlan1/STA）
-# 如果刷机后没生效，可以尝试改成 [2] 或 [3]
-uci set wireless.@wifi-iface[1].bss_transition='0'
+# 确保 rc.local 存在并保留原有内容
+if [ ! -f package/base-files/files/etc/rc.local ]; then
+    echo -e "#!/bin/sh\nexit 0" > package/base-files/files/etc/rc.local
+fi
 
+# 在 exit 0 之前插入我们的逻辑
+sed -i '/exit 0/i \
+# 自动检查并关闭 STA 接口的 WNM (11v)\
+has_sta=0\
+for iface in $(uci show wireless | grep "wifi-iface" | cut -d. -f2 | cut -d= -f1); do\
+    mode=$(uci -q get wireless.$iface.mode)\
+    if [ "$mode" = "sta" ]; then\
+        uci set wireless.$iface.bss_transition="0"\
+        has_sta=1\
+    fi\
+done\
+if [ "$has_sta" = "1" ]; then\
+    uci commit wireless\
+    wifi reload\
+fi\
+' package/base-files/files/etc/rc.local
 
-# 提交修改
-uci commit wireless
-
-echo "WNM 和 BSSID 参数已固化到默认配置！"
+chmod +x package/base-files/files/etc/rc.local
 echo "========================================="
 echo "脚本执行完毕，开始编译。"
 echo "========================================="
