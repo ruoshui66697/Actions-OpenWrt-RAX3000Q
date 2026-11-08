@@ -3,11 +3,7 @@
 # Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
 #
 
-# ============================================================
-# 0. 启用 autocore-arm
-# ============================================================
-#sed -i '/CONFIG_PACKAGE_autocore-arm/d' .config
-#echo "CONFIG_PACKAGE_autocore-arm=y" >> .config
+
 
 # ============================================================
 # 1. mwan3 (保持注释)
@@ -87,9 +83,6 @@ echo "CONFIG_PACKAGE_luci-i18n-smartdns-zh-cn=y" >> .config
 # 开启 ath11k 的 debugfs 和 tracing 支持，方便后续排查
 # 回退：删除这三行即可
 # ============================================================
-echo "CONFIG_PACKAGE_MAC80211_DEBUGFS=y" >> .config
-echo "CONFIG_PACKAGE_MAC80211_TRACING=y" >> .config
-echo "CONFIG_PACKAGE_ATH_DEBUG=y" >> .config
 
 echo "========================================="
 echo "脚本执行完毕，开始编译。"
