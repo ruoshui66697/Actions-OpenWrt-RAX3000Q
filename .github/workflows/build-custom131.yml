@@ -197,7 +197,8 @@ jobs:
           
           echo "ath-kernel 包已成功生成！"
         fi
-
+        
+    # 给patch文件消毒，避免windows空格
     - name: Sanitize patch files
       run: |
         find openwrt/package/kernel/mac80211/patches -name '*.patch' -exec sed -i 's/\r$//' {} +
@@ -221,39 +222,7 @@ jobs:
         
         echo "✅ 预演成功！补丁已全部打入源码，准备进入正式编译！"
 
-    - name: Apply Plan A (Disable WNM in wpa_supplicant)
-      run: |
-        echo "=================================================="
-        echo "正在执行 fix_wnm_off.py 关闭 WNM，避免 GTK rekey 断线..."
-        # ${{ github.workspace }} 是仓库根目录，openwrt 是源码目录
-        python3 "${{ github.workspace }}/fix_wnm_off.py" "${{ github.workspace }}/openwrt"
-        echo "✅ WNM 关闭脚本执行完毕，准备编译！"
-        echo "=================================================="
 
- #   - name: Apply Plan B (Patch ath11k & mac80211 sources)
- #     run: |
- #       cd openwrt
- #       echo "=================================================="
- #       echo "1. 正在准备 mac80211 源码..."
- #       make package/kernel/mac80211/prepare V=s
-        
- #       MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
-        
- #      if [ -z "$MACDIR" ]; then
- #           echo "❌ ERROR: 找不到源码目录，准备失败！"
- #           exit 1
- #       fi
- #      echo "✅ 找到源码目录: $MACDIR"
- #       
- #       echo "2. 正在执行 Python 补丁脚本..."
- #       python3 "${{ github.workspace }}/fix_all_ath11k_rekey.py" --source-dir "$MACDIR"
-
- #       echo "3. 正在强制更新文件时间戳（逼迫编译器重新编译）..."
- #       find "$MACDIR" -name "*.c" -exec touch {} \;
- #       find "$MACDIR" -name "*.h" -exec touch {} \;
-        
- #       echo "✅ 补丁注入完毕，直接进入编译流程！"
- #       echo "=================================================="
 
 
 
