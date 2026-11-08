@@ -104,7 +104,7 @@ jobs:
       uses: klever1988/cachewrtbuild@main
       with:
         ccache: 'true'
-        mixkey: 'immortalwrt21-cortexa7-vfpv4-20' # 👈 修改：增加 16 避免与 1.2 缓存串用
+        mixkey: 'immortalwrt21-cortexa7-vfpv4-21' # 👈 修改：增加 16 避免与 1.2 缓存串用
         prefix: ${{ github.workspace }}/openwrt
 
     - name: Load custom feeds
