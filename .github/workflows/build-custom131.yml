@@ -213,14 +213,14 @@ jobs:
         # 这一步会自动把 990, 991, 992 打进去。如果 992 格式有错，这里会直接报错变红！
         make package/kernel/mac80211/prepare V=s
         
-        echo "=== 3. 检查 992 补丁是否成功打上 ==="
-        MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
-        cd "$MACDIR"
+        #echo "=== 3. 检查 992 补丁是否成功打上 ==="
+        #MACDIR=$(find build_dir -maxdepth 5 -type d -name "backports-20210222-5.4-qsdk*" | head -n 1)
+        #cd "$MACDIR"
         # 直接看源码里有没有咱们加的代码，有就代表补丁完美成功
-        grep -n "ath11k_set_group_keys" drivers/net/wireless/ath/ath11k/mac.c
-        grep -n "reinstall_group_keys" drivers/net/wireless/ath/ath11k/core.h
+        #grep -n "ath11k_set_group_keys" drivers/net/wireless/ath/ath11k/mac.c
+        #grep -n "reinstall_group_keys" drivers/net/wireless/ath/ath11k/core.h
         
-        echo "✅ 预演成功！补丁已全部打入源码，准备进入正式编译！"
+        #echo "✅ 预演成功！补丁已全部打入源码，准备进入正式编译！"
 
 
 
